@@ -31,3 +31,8 @@ c_enum!(Piece {
     BOMB: usize = 7,
     FLAG: usize = 8,
 });
+
+c_enum!(Flag {
+    QUIET: u8 = 0,
+    CAPTURE: u8 = 4,
+});
