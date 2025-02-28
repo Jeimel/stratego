@@ -20,3 +20,11 @@ macro_rules! init_lookup {
         attacks
     }};
 }
+
+pub fn orthogonal(sq: usize) -> u64 {
+    const ATTACKS: [u64; 64] = init_lookup!(|bb| {
+        ((bb << 1) & 0xfefefefefefefefe) | ((bb >> 1) & 0x7f7f7f7f7f7f7f7f) | (bb << 8) | (bb >> 8)
+    });
+
+    ATTACKS[sq]
+}
