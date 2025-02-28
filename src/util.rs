@@ -10,3 +10,13 @@ macro_rules! c_enum {
         }
     };
 }
+
+c_enum!(Piece {
+    SPY: usize = 2,
+    SCOUT: usize = 3,
+    MINER: usize = 4,
+    GENERAL: usize = 5,
+    MARSHAL: usize = 6,
+    BOMB: usize = 7,
+    FLAG: usize = 8,
+});
