@@ -11,6 +11,17 @@ macro_rules! c_enum {
     };
 }
 
+#[macro_export]
+macro_rules! bitboard_loop {
+    ($bitboard:expr, $square:ident, $func: expr) => {
+        while $bitboard != 0 {
+            let $square = $bitboard.trailing_zeros() as u8;
+            $bitboard &= $bitboard.wrapping_sub(1);
+            $func;
+        }
+    };
+}
+
 c_enum!(Piece {
     SPY: usize = 2,
     SCOUT: usize = 3,
