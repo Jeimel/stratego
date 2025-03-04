@@ -106,4 +106,43 @@ impl Position {
         'F', 'S', 'C', 'D', 'G', 'M', 'X', 'B', 'f', 's', 'c', 'd', 'g', 'm', 'x', 'b',
     ];
     const LAKES: u64 = 0x2424000000;
+
+    pub fn from(notation: &str) -> Self {
+        let fields = notation.split(' ').collect::<Vec<&str>>();
+
+        let mut pos = Position {
+            bb: [0u64; 10],
+            stm: 0,
+            moves: 0,
+        };
+
+        let (mut file, mut rank) = (0, 7);
+        for c in fields[0].chars().collect::<Vec<_>>() {
+            match c {
+                c if c.is_numeric() => file += c as u32 - '0' as u32,
+                '/' => (file, rank) = (0, rank - 1),
+                _ => {
+                    let side = c.is_ascii_lowercase() as usize;
+                    let c = c.to_ascii_uppercase();
+                    let piece = Position::SYMBOLS
+                        .iter()
+                        .position(|&symbol| symbol == c)
+                        .unwrap()
+                        .wrapping_add(2);
+
+                    let sq = 1 << (rank * 8 + file);
+
+                    pos.bb[side] |= sq;
+                    pos.bb[piece] |= sq;
+
+                    file += 1;
+                }
+            };
+        }
+
+        pos.stm = if fields[1] == "r" { 0 } else { 1 };
+        pos.moves = fields[2].parse().unwrap();
+
+        pos
+    }
 }
