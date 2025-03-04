@@ -1,3 +1,10 @@
+use std::cmp::Ordering;
+
+use crate::{
+    attacks, bitboard_loop,
+    util::{Flag, Piece},
+};
+
 pub struct Move {
     pub from: u8,
     pub to: u8,
@@ -46,4 +53,57 @@ impl MoveList {
         };
         self.length += 1;
     }
+}
+
+/// Represents board from pov of one player
+#[derive(Clone, Copy)]
+pub struct Position {
+    bb: [u64; 10],
+    stm: usize,
+    moves: u16,
+}
+
+impl std::fmt::Display for Position {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        const DELIMITER: &'static str = concat!("+---+---+---+---+---+---+---+---+", '\n');
+
+        let mut pos = [' '; 64];
+        for piece in Piece::FLAG..=Piece::BOMB {
+            let mut piece_mask = self.bb[piece];
+
+            bitboard_loop!(piece_mask, sq, {
+                let bb = 1 << sq as u64;
+                let offset = if (bb & self.bb[0]) != 0 { 0 } else { 8 };
+
+                pos[sq as usize] = Position::SYMBOLS[piece + offset - 2];
+            });
+        }
+
+        let mut lakes = Position::LAKES;
+        bitboard_loop!(lakes, sq, pos[sq as usize] = '~');
+
+        let mut pos_str = String::from(DELIMITER);
+
+        for rank in (0..8).rev() {
+            let start = rank * 8;
+            let rank_str = &pos[start..(start + 8)]
+                .iter()
+                .fold(String::new(), |mut acc, &c| {
+                    acc.push_str(&format!("| {} ", c));
+                    acc
+                });
+
+            pos_str.push_str(&format!("{}| {}\n{}", rank_str, rank + 1, DELIMITER));
+        }
+
+        pos_str.push_str("  a   b   c   d   e   f   g   h");
+        write!(f, "{}", pos_str)
+    }
+}
+
+impl Position {
+    const SYMBOLS: [char; 16] = [
+        'F', 'S', 'C', 'D', 'G', 'M', 'X', 'B', 'f', 's', 'c', 'd', 'g', 'm', 'x', 'b',
+    ];
+    const LAKES: u64 = 0x2424000000;
 }
