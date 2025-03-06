@@ -39,3 +39,27 @@ c_enum!(Flag {
     EVADING: u8 = 2,
     CHANCE: u8 = 32,
 });
+
+pub struct Zobrist(());
+
+impl Zobrist {
+    const HASHES: [u64; 2 * 64] = {
+        let mut seed: u64 = 1070372;
+        let mut hashes = [0u64; 2 * 64];
+
+        let mut i = 0;
+        while i < hashes.len() {
+            seed ^= seed >> 12;
+            seed ^= seed << 25;
+            seed ^= seed >> 27;
+            hashes[i] = seed.wrapping_mul(2685821657736338717);
+            i += 1;
+        }
+
+        hashes
+    };
+
+    pub fn get(stm: usize, sq: usize) -> u64 {
+        Zobrist::HASHES[(stm + 1) * sq]
+    }
+}
