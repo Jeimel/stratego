@@ -23,16 +23,19 @@ macro_rules! bitboard_loop {
 }
 
 c_enum!(Piece {
-    SPY: usize = 2,
-    SCOUT: usize = 3,
-    MINER: usize = 4,
-    GENERAL: usize = 5,
-    MARSHAL: usize = 6,
-    BOMB: usize = 7,
-    FLAG: usize = 8,
+    FLAG: usize = 2,
+    SPY: usize = 3,
+    SCOUT: usize = 4,
+    MINER: usize = 5,
+    GENERAL: usize = 6,
+    MARSHAL: usize = 7,
+    UNKNOWN: usize = 8,
+    BOMB: usize = 9,
 });
 
 c_enum!(Flag {
     QUIET: u8 = 0,
-    CAPTURE: u8 = 4,
+    CAPTURE: u8 = 1,
+    EVADING: u8 = 2,
+    CHANCE: u8 = 32,
 });
