@@ -99,3 +99,20 @@ pub fn ranged(sq: usize, occ: u64) -> u64 {
 
     file | rank
 }
+
+pub fn between_squares(from: u8, to: u8) -> u64 {
+    let (from, to) = if from < to { (from, to) } else { (to, from) };
+
+    let from_bit = 1u64 << from;
+    let to_bit = 1u64 << to;
+
+    let mask = if (from & 7) == (to & 7) {
+        let file_mask = 0x0101010101010101 << (from & 7);
+        (to_bit - from_bit) & file_mask
+    } else {
+        let rank_mask = 0xFF << (from & 56);
+        (to_bit - from_bit) & rank_mask
+    };
+
+    mask ^ to_bit
+}
