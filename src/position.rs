@@ -44,7 +44,7 @@ impl std::fmt::Display for Position {
             let rank_str = &pos[start..(start + 8)]
                 .iter()
                 .fold(String::new(), |mut acc, &c| {
-                    acc.push_str(&format!("| {} ", c));
+                    acc.push_str(&format!("| {c} "));
                     acc
                 });
 
@@ -52,7 +52,7 @@ impl std::fmt::Display for Position {
         }
 
         pos_str.push_str("  a   b   c   d   e   f   g   h");
-        write!(f, "{}", pos_str)
+        write!(f, "{pos_str}")
     }
 }
 
@@ -65,7 +65,7 @@ impl Position {
     pub fn from(notation: &str) -> Self {
         let fields = notation.split(' ').collect::<Vec<&str>>();
 
-        let mut pos = Position {
+        let mut pos = Self {
             bb: [0u64; 10],
             stm: false,
             hash: 0,
@@ -76,7 +76,7 @@ impl Position {
         };
 
         let (mut file, mut rank) = (0, 7);
-        for c in fields[0].chars().collect::<Vec<_>>() {
+        for c in fields[0].chars() {
             match c {
                 c if c.is_numeric() => file += c as u32 - '0' as u32,
                 '/' => (file, rank) = (0, rank - 1),
@@ -140,9 +140,9 @@ impl Position {
         // Store possible attacks in next turn to check if opponent is evading
         self.attacks = attacks::orthogonal(mov.to as usize);
         // Check if next move can't be repetitive
-        self.evading[stm] = mov.flag == Flag::EVADING;
+        self.evading[stm] = (mov.flag & Flag::EVADING) != 0;
 
-        if mov.flag == Flag::CHANCE {
+        if (mov.flag & Flag::CHANCE) != 0 {
             // Remove piece from 'UNKNOWN' bitboard
             self.toggle(stm, Piece::UNKNOWN, mov.from);
         } else {
@@ -151,7 +151,7 @@ impl Position {
         }
 
         // Add piece to new square when not capturing
-        if mov.flag == Flag::CAPTURE {
+        if (mov.flag & Flag::CAPTURE) == 0 {
             self.toggle(stm, piece, mov.to);
             self.half += 1;
 
