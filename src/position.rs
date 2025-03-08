@@ -186,6 +186,107 @@ impl Position {
         }
     }
 
+    pub fn gen(&self, stack: &MoveStack) -> MoveList {
+        let mut moves = MoveList::default();
+        let stm = usize::from(self.stm);
+
+        if self.game_over(stm) {
+            return moves;
+        }
+
+        let occ = self.bb[0] | self.bb[1] | Position::LAKES;
+        let from_mask = if self.last[stm].from != u8::MAX {
+            1u64 << self.last[stm].from
+        } else {
+            0
+        };
+        // Remove path from attacks on third repetition
+        let square_mask = if self.last[stm].moves == 2 {
+            self.last[stm].path | from_mask
+        } else {
+            0
+        };
+
+        let attacks = self.attacks(stm ^ 1);
+
+        for piece in Piece::SPY..=Piece::MARSHAL {
+            let mut piece_mask = (self.bb[piece] | self.bb[Piece::UNKNOWN]) & self.bb[stm];
+
+            bitboard_loop!(piece_mask, from, {
+                let mut attack_mask = match piece {
+                    Piece::SCOUT => attacks::ranged(from as usize, occ),
+                    _ => attacks::orthogonal(from as usize),
+                };
+
+                let from_bb = 1u64 << from;
+                let piece = piece as u8;
+
+                // If piece on `from` is unknown all possibilities must be generated
+                let chance_flag = if (from_bb & self.bb[Piece::UNKNOWN]) != 0 {
+                    Flag::CHANCE
+                } else {
+                    0
+                };
+
+                // Moving back to previous square/path is forbidden on third time
+                if self.last[stm].to == from {
+                    attack_mask ^= square_mask;
+                }
+
+                // `ranged` and `orthogonal` don't subtract `LAKES` implicitly
+                let mut captures = attack_mask & self.bb[stm ^ 1] & !Position::LAKES;
+                // `occ` already includes `LAKES`
+                let mut quiets = attack_mask & !occ;
+
+                bitboard_loop!(
+                    captures,
+                    to,
+                    moves.push(from, to, Flag::CAPTURE | chance_flag, piece)
+                );
+
+                // If opponent's piece is chasing then all quiet moves are evading
+                let flag = if (self.attacks & from_bb) != 0 {
+                    Flag::EVADING
+                } else {
+                    Flag::QUIET
+                };
+
+                // Piece can't move back to old position when chasing except the previous position
+                let repetitions = quiets & attacks & !from_mask;
+                if self.evading[stm ^ 1] && repetitions != 0 {
+                    quiets ^= self.repetition(stack, stm, from, repetitions);
+                }
+
+                bitboard_loop!(quiets, to, moves.push(from, to, flag | chance_flag, piece));
+            });
+        }
+
+        moves
+    }
+
+    fn attacks(&self, stm: usize) -> u64 {
+        let mut bb = self.bb[stm];
+        let mut attacks = 0;
+
+        bitboard_loop!(bb, sq, attacks |= attacks::orthogonal(sq as usize));
+
+        attacks
+    }
+
+    fn repetition(&self, stack: &MoveStack, stm: usize, from: u8, bb: u64) -> u64 {
+        let hash = self.hash ^ Zobrist::get(stm, from as usize);
+
+        let mut repetitions = 0;
+        let mut bb = bb;
+        bitboard_loop!(bb, sq, {
+            if stack.repetition(self.half(), hash ^ Zobrist::get(stm, sq as usize)) {
+                repetitions |= 1u64 << sq;
+            }
+        });
+
+        repetitions
+    }
+
     fn piece(&self, sq: u8) -> usize {
         let bb = 1u64 << sq;
 
