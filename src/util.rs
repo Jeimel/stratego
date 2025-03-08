@@ -34,10 +34,10 @@ c_enum!(Piece {
 });
 
 c_enum!(Flag {
-    QUIET: u8 = 0,
-    CAPTURE: u8 = 1,
-    EVADING: u8 = 2,
-    CHANCE: u8 = 3,
+    QUIET: u8 = 1,
+    CAPTURE: u8 = 2,
+    EVADING: u8 = 4,
+    CHANCE: u8 = 8,
 });
 
 pub struct Zobrist(());
