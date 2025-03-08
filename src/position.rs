@@ -1,71 +1,26 @@
-use std::cmp::Ordering;
-
+use crate::moves::{Move, MoveList, MoveStack, SquareMask};
+use crate::util::Zobrist;
 use crate::{
     attacks, bitboard_loop,
     util::{Flag, Piece},
 };
-
-pub struct Move {
-    pub from: u8,
-    pub to: u8,
-    pub flag: u8,
-    pub piece: u8,
-}
-
-impl Move {
-    pub const NULL: Move = Move {
-        from: 0,
-        to: 0,
-        flag: 0,
-        piece: 0,
-    };
-}
-
-pub struct MoveList {
-    pub length: usize,
-    moves: [Move; 218],
-}
-
-impl Default for MoveList {
-    fn default() -> Self {
-        MoveList {
-            moves: [Move::NULL; 218],
-            length: 0,
-        }
-    }
-}
-
-impl std::ops::Index<usize> for MoveList {
-    type Output = Move;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.moves[index]
-    }
-}
-
-impl MoveList {
-    pub fn push(&mut self, from: u8, to: u8, flag: u8, piece: u8) {
-        self.moves[self.length] = Move {
-            from,
-            to,
-            flag,
-            piece,
-        };
-        self.length += 1;
-    }
-}
+use std::cmp::Ordering;
 
 /// Represents board from pov of one player
 #[derive(Clone, Copy)]
 pub struct Position {
     bb: [u64; 10],
-    stm: usize,
-    moves: u16,
+    stm: bool,
+    hash: u64,
+    half: u16,
+    last: [SquareMask; 2],
+    attacks: u64,
+    evading: [bool; 2],
 }
 
 impl std::fmt::Display for Position {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        const DELIMITER: &'static str = concat!("+---+---+---+---+---+---+---+---+", '\n');
+        const DELIMITER: &str = concat!("+---+---+---+---+---+---+---+---+", '\n');
 
         let mut pos = [' '; 64];
         for piece in Piece::FLAG..=Piece::BOMB {
@@ -112,8 +67,12 @@ impl Position {
 
         let mut pos = Position {
             bb: [0u64; 10],
-            stm: 0,
-            moves: 0,
+            stm: false,
+            hash: 0,
+            half: 0,
+            last: [SquareMask::default(); 2],
+            attacks: 0,
+            evading: [false; 2],
         };
 
         let (mut file, mut rank) = (0, 7);
@@ -130,19 +89,120 @@ impl Position {
                         .unwrap()
                         .wrapping_add(2);
 
-                    let sq = 1 << (rank * 8 + file);
-
-                    pos.bb[side] |= sq;
-                    pos.bb[piece] |= sq;
+                    pos.toggle(side, piece, (rank * 8 + file) as u8);
 
                     file += 1;
                 }
             };
         }
 
-        pos.stm = if fields[1] == "r" { 0 } else { 1 };
-        pos.moves = fields[2].parse().unwrap();
+        pos.stm = fields[1] != "r";
 
         pos
+    }
+
+    pub fn hash(&self) -> u64 {
+        self.hash
+    }
+
+    pub fn half(&self) -> usize {
+        self.half as usize
+    }
+
+    pub fn game_over(&self, stm: usize) -> bool {
+        (self.bb[Piece::FLAG] & self.bb[stm]) == 0
+    }
+
+    pub fn make(&mut self, mov: &Move) {
+        let stm = usize::from(self.stm);
+        let piece = mov.piece as usize;
+
+        // Increase two-squares counter if moving back to previous square or traversing along path
+        self.last[stm].moves = if (self.last[stm].from == mov.to && self.last[stm].to == mov.from)
+            || (self.last[stm].path & (1u64 << mov.to)) != 0
+        {
+            self.last[stm].moves + 1
+        } else {
+            // Store traversed path if moved piece is `SCOUT`
+            self.last[stm].path = if usize::from(mov.piece) == Piece::SCOUT {
+                attacks::between_squares(mov.from, mov.to)
+            } else {
+                0
+            };
+
+            0
+        };
+
+        self.stm ^= true;
+        // Store last move for current side to enforce two-squares rule
+        self.last[stm].from = mov.from;
+        self.last[stm].to = mov.to;
+        // Store possible attacks in next turn to check if opponent is evading
+        self.attacks = attacks::orthogonal(mov.to as usize);
+        // Check if next move can't be repetitive
+        self.evading[stm] = mov.flag == Flag::EVADING;
+
+        if mov.flag == Flag::CHANCE {
+            // Remove piece from 'UNKNOWN' bitboard
+            self.toggle(stm, Piece::UNKNOWN, mov.from);
+        } else {
+            // Remove piece from old square
+            self.toggle(stm, piece, mov.from);
+        }
+
+        // Add piece to new square when not capturing
+        if mov.flag == Flag::CAPTURE {
+            self.toggle(stm, piece, mov.to);
+            self.half += 1;
+
+            return;
+        }
+
+        // Reset if board changes because of capture
+        self.half = 0;
+
+        let other = self.piece(mov.to);
+
+        // Spy can capture general or only miner can defuse bomb
+        if (piece == Piece::SPY && other == Piece::GENERAL)
+            || (piece == Piece::MINER && other == Piece::BOMB)
+        {
+            self.toggle(stm ^ 1, other, mov.to);
+            self.toggle(stm, piece, mov.to);
+
+            return;
+        }
+
+        match piece.cmp(&other) {
+            // Do nothing, because piece is already removed
+            Ordering::Less => {}
+            // Delete only other, because piece is already removed
+            Ordering::Equal => self.toggle(stm ^ 1, other, mov.to),
+            // Delete other and add piece
+            Ordering::Greater => {
+                self.toggle(stm ^ 1, other, mov.to);
+                self.toggle(stm, piece, mov.to);
+            }
+        }
+    }
+
+    fn piece(&self, sq: u8) -> usize {
+        let bb = 1u64 << sq;
+
+        self.bb
+            .iter()
+            .skip(2)
+            .position(|piece_bb| (piece_bb & bb) != 0)
+            .unwrap_or(usize::MAX - 2)
+            .wrapping_add(2)
+    }
+
+    fn toggle(&mut self, stm: usize, piece: usize, sq: u8) {
+        let bb = 1u64 << sq;
+
+        self.hash ^= Zobrist::get(stm, sq as usize);
+
+        self.bb[stm] ^= bb;
+        self.bb[piece] ^= bb;
     }
 }

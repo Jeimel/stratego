@@ -37,7 +37,7 @@ c_enum!(Flag {
     QUIET: u8 = 0,
     CAPTURE: u8 = 1,
     EVADING: u8 = 2,
-    CHANCE: u8 = 32,
+    CHANCE: u8 = 3,
 });
 
 pub struct Zobrist(());
@@ -52,6 +52,7 @@ impl Zobrist {
             seed ^= seed >> 12;
             seed ^= seed << 25;
             seed ^= seed >> 27;
+
             hashes[i] = seed.wrapping_mul(2685821657736338717);
             i += 1;
         }

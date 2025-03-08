@@ -71,7 +71,7 @@ impl MoveStack {
     }
 
     pub fn repetition(&self, half: usize, current: u64) -> bool {
-        if self.stack.len() < 8 {
+        if self.stack.len() < 7 {
             return false;
         }
 
