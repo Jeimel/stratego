@@ -1,10 +1,15 @@
-use crate::moves::{Move, MoveList, MoveStack, SquareMask};
-use crate::util::Zobrist;
-use crate::{
-    attacks, bitboard_loop,
-    util::{Flag, Piece},
-};
 use std::cmp::Ordering;
+
+use crate::{
+    bitboard_loop,
+    stratego::util::{Piece, Zobrist},
+};
+
+use super::{
+    attacks,
+    moves::{Move, MoveList, MoveStack, SquareMask},
+    util::Flag,
+};
 
 /// Represents board from pov of one player
 #[derive(Clone, Copy)]
