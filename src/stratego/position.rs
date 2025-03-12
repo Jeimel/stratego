@@ -1,21 +1,21 @@
-use std::cmp::Ordering;
-
-use crate::{
-    bitboard_loop,
-    stratego::util::{Piece, Zobrist},
-};
-
 use super::{
     attacks,
     moves::{Move, MoveList, MoveStack, SquareMask},
     util::Flag,
+    GameState,
 };
+use crate::{
+    bitboard_loop,
+    stratego::util::{Piece, Zobrist},
+};
+use std::cmp::Ordering;
 
 /// Represents board from pov of one player
 #[derive(Clone, Copy)]
 pub struct Position {
     bb: [u64; 10],
     stm: bool,
+    state: GameState,
     hash: u64,
     half: u16,
     last: [SquareMask; 2],
@@ -73,6 +73,7 @@ impl Position {
         let mut pos = Self {
             bb: [0u64; 10],
             stm: false,
+            state: GameState::default(),
             hash: 0,
             half: 0,
             last: [SquareMask::default(); 2],
@@ -106,16 +107,24 @@ impl Position {
         pos
     }
 
+    pub fn stm(&self) -> bool {
+        self.stm
+    }
+
+    pub fn game_state(&self) -> GameState {
+        self.state
+    }
+
+    pub fn game_over(&self) -> bool {
+        self.state != GameState::Ongoing
+    }
+
     pub fn hash(&self) -> u64 {
         self.hash
     }
 
     pub fn half(&self) -> usize {
         self.half as usize
-    }
-
-    pub fn game_over(&self, stm: usize) -> bool {
-        (self.bb[Piece::FLAG] & self.bb[stm]) == 0
     }
 
     pub fn make(&mut self, mov: &Move) {
@@ -189,15 +198,39 @@ impl Position {
                 self.toggle(stm, piece, mov.to);
             }
         }
+
+        // Current player has captured the flag
+        if other == Piece::FLAG {
+            self.state = GameState::Win;
+            return;
+        }
+
+        // If all bitboards except the flags are empty the game is drawn
+        if ((self.bb[0] | self.bb[1]) ^ self.bb[Piece::FLAG]) == 0 {
+            self.state = GameState::Draw;
+            return;
+        }
+
+        // If the current side has no pieces the other wins
+        if (self.bb[stm] & !self.bb[Piece::FLAG]) == 0 {
+            self.state = GameState::Loss;
+            return;
+        }
+
+        // If other side has no pieces the current side wins
+        if (self.bb[stm ^ 1] & !self.bb[Piece::FLAG]) == 0 {
+            self.state = GameState::Win;
+            return;
+        }
     }
 
     pub fn gen(&self, stack: &MoveStack) -> MoveList {
         let mut moves = MoveList::default();
-        let stm = usize::from(self.stm);
-
-        if self.game_over(stm) {
+        if self.state != GameState::Ongoing {
             return moves;
         }
+
+        let stm = usize::from(self.stm);
 
         let occ = self.bb[0] | self.bb[1] | Position::LAKES;
         let from_mask = if self.last[stm].from != u8::MAX {
