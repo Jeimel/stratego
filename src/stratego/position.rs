@@ -115,6 +115,10 @@ impl Position {
         self.state
     }
 
+    pub fn set_game_state(&mut self, state: GameState) {
+        self.state = state;
+    }
+
     pub fn game_over(&self) -> bool {
         self.state != GameState::Ongoing
     }

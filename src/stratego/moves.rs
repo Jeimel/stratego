@@ -1,4 +1,4 @@
-#[derive(Copy, Clone, Default)]
+#[derive(Copy, Clone, Default, PartialEq)]
 pub struct Move {
     pub from: u8,
     pub to: u8,
@@ -42,6 +42,10 @@ impl std::ops::Index<usize> for MoveList {
 }
 
 impl MoveList {
+    pub fn iter(&self) -> impl Iterator<Item = Move> + '_ {
+        self.moves[..self.length].iter().cloned()
+    }
+
     pub fn length(&self) -> usize {
         self.length
     }
@@ -57,19 +61,13 @@ impl MoveList {
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct MoveStack {
     stack: Vec<u64>,
     ply: u16,
 }
 
 impl MoveStack {
-    pub fn print(&self) {
-        for &hash in self.stack.iter().rev() {
-            println!("Hash {hash}");
-        }
-    }
-
     pub fn repetition(&self, half: usize, current: u64) -> bool {
         if self.stack.len() < 7 {
             return false;
@@ -82,6 +80,10 @@ impl MoveStack {
         }
 
         false
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &u64> {
+        self.stack.iter()
     }
 
     pub fn push(&mut self, hash: u64) {
