@@ -33,11 +33,28 @@ c_enum!(Piece {
     BOMB: usize = 9,
 });
 
+impl Piece {
+    pub fn rank(piece: usize) -> usize {
+        match piece {
+            Piece::SPY => 1,
+            Piece::SCOUT => 2,
+            Piece::MINER => 3,
+            Piece::GENERAL => 9,
+            Piece::MARSHAL => 10,
+            _ => {
+                println!("Unreachable {piece}");
+                unreachable!()
+            }
+        }
+    }
+}
+
 c_enum!(Flag {
     QUIET: u8 = 1,
     CAPTURE: u8 = 2,
     EVADING: u8 = 4,
     CHANCE: u8 = 8,
+    ATTACKED: u8 = 16,
 });
 
 pub struct Zobrist(());
