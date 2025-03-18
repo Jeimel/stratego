@@ -1,6 +1,8 @@
 use std::time::Instant;
 
+use rand::seq::IndexedRandom;
 use stratego::{Move, MoveStack, Position};
+use tournament::DEPLOYMENTS;
 
 pub mod mcts;
 pub mod stratego;
@@ -61,18 +63,20 @@ pub trait Protocol: Default {
             if let Some(mov) = pos.gen(stack).iter().find(|m| *mov == format!("{m}")) {
                 pos.make(&mov);
                 stack.push(pos.hash());
-            } else {
-                unreachable!()
             }
         }
+    }
+
+    /// Must return a valid deployment from pov of blue in notation
+    fn handle_deployment(&self, _: Vec<&str>) -> String {
+        let mut rng = rand::rng();
+
+        DEPLOYMENTS.choose(&mut rng).unwrap().to_string()
     }
 
     /// Must return list of valid options in the format:
     /// setoption name <name> = <value>
     fn option() -> String;
-
-    /// Must return a valid deployment in notation
-    fn handle_deployment(&self, commands: Vec<&str>) -> String;
 
     /// Must return a valid move in the given position
     fn handle_go(&mut self, commands: Vec<&str>, pos: &Position, stack: &MoveStack) -> Move;
