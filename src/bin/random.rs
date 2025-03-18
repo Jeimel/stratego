@@ -3,13 +3,13 @@ use std::collections::HashSet;
 use stratego::{stratego::Position, Protocol};
 
 fn main() {
-    Random::default().run();
+    UniformRandom::default().run();
 }
 
 #[derive(Default)]
-pub struct Random {}
+pub struct UniformRandom {}
 
-impl Random {
+impl UniformRandom {
     const PIECES: [char; 10] = [
         Position::SYMBOLS[0],
         Position::SYMBOLS[1],
@@ -24,11 +24,7 @@ impl Random {
     ];
 }
 
-impl Protocol for Random {
-    fn option() -> String {
-        String::new()
-    }
-
+impl Protocol for UniformRandom {
     fn handle_deployment(&self, _: Vec<&str>) -> String {
         let mut deployment = [' '; 24];
 
@@ -72,6 +68,10 @@ impl Protocol for Random {
         chars.next_back();
 
         chars.as_str().to_string()
+    }
+
+    fn option() -> String {
+        String::new()
     }
 
     fn handle_go(
