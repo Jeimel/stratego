@@ -1,10 +1,6 @@
+use crate::stratego::{Move, Position, StrategoState};
 use rand::{rng, seq::IteratorRandom, Rng};
 use std::collections::HashSet;
-use stratego::{stratego::Position, Protocol};
-
-fn main() {
-    UniformRandom::default().run();
-}
 
 #[derive(Default)]
 pub struct UniformRandom {}
@@ -22,10 +18,18 @@ impl UniformRandom {
         Position::SYMBOLS[7],
         Position::SYMBOLS[7],
     ];
-}
 
-impl Protocol for UniformRandom {
-    fn handle_deployment(&self, _: Vec<&str>) -> String {
+    pub fn go(&mut self, pos: &StrategoState) -> Move {
+        let mut rng = rng();
+
+        pos.clone()
+            .gen()
+            .iter()
+            .choose(&mut rng)
+            .expect("valid move")
+    }
+
+    pub fn deployment(&self) -> String {
         let mut deployment = [' '; 24];
 
         let mut rng = rng();
@@ -68,24 +72,5 @@ impl Protocol for UniformRandom {
         chars.next_back();
 
         chars.as_str().to_string()
-    }
-
-    fn option() -> String {
-        String::new()
-    }
-
-    fn handle_go(
-        &mut self,
-        _: Vec<&str>,
-        pos: &stratego::stratego::Position,
-        stack: &stratego::stratego::MoveStack,
-    ) -> stratego::stratego::Move {
-        let mut rng = rand::rng();
-
-        pos.gen(&stack).iter().choose(&mut rng).expect("valid move")
-    }
-
-    fn handle_options(&mut self, _: Vec<&str>) {
-        unimplemented!()
     }
 }
