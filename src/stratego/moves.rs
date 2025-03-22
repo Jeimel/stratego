@@ -1,3 +1,5 @@
+use crate::stratego::util::{Flag, Piece};
+
 #[derive(Copy, Clone, Default, PartialEq)]
 pub struct Move {
     pub from: u8,
@@ -15,7 +17,26 @@ impl std::fmt::Display for Move {
             format!("{}{}", (b'a' + file) as char, rank + 1)
         }
 
-        write!(f, "{}{}", to_notation(self.from), to_notation(self.to))
+        let prefix = if (self.flag & Flag::ATTACKED) != 0 {
+            format!("{}x", Piece::rank(usize::from(self.flag >> 5)))
+        } else {
+            String::new()
+        };
+
+        let suffix = if (self.flag & Flag::CAPTURE) != 0 {
+            format!("x{}", Piece::rank(self.piece as usize))
+        } else {
+            String::new()
+        };
+
+        write!(
+            f,
+            "{}{}{}{}",
+            prefix,
+            to_notation(self.from),
+            to_notation(self.to),
+            suffix
+        )
     }
 }
 
@@ -97,7 +118,7 @@ impl MoveStack {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct SquareMask {
     pub moves: u8,
     pub from: u8,

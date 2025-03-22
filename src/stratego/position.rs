@@ -11,13 +11,14 @@ use crate::{
 use std::cmp::Ordering;
 
 /// Represents board from pov of one player
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Position {
     bb: [u64; 10],
     stm: bool,
     state: GameState,
     hash: u64,
     half: u16,
+    attacker: u8,
     last: [SquareMask; 2],
     attacks: u64,
     evading: [bool; 2],
@@ -62,7 +63,7 @@ impl std::fmt::Display for Position {
 }
 
 impl Position {
-    const SYMBOLS: [char; 16] = [
+    pub const SYMBOLS: [char; 16] = [
         'F', 'S', 'C', 'D', 'G', 'M', 'X', 'B', 'f', 's', 'c', 'd', 'g', 'm', 'x', 'b',
     ];
     const LAKES: u64 = 0x2424000000;
@@ -76,6 +77,7 @@ impl Position {
             state: GameState::default(),
             hash: 0,
             half: 0,
+            attacker: 0,
             last: [SquareMask::default(); 2],
             attacks: 0,
             evading: [false; 2],
@@ -172,12 +174,14 @@ impl Position {
         if (mov.flag & Flag::CAPTURE) == 0 {
             self.toggle(stm, piece, mov.to);
             self.half += 1;
+            self.attacker = 0;
 
             return;
         }
 
         // Reset if board changes because of capture
         self.half = 0;
+        self.attacker = mov.piece;
 
         let other = self.piece(mov.to);
 
@@ -203,28 +207,23 @@ impl Position {
             }
         }
 
+        let immovable = self.bb[Piece::FLAG] | self.bb[Piece::BOMB];
+
         // Current player has captured the flag
         if other == Piece::FLAG {
             self.state = GameState::Win;
-            return;
         }
-
-        // If all bitboards except the flags are empty the game is drawn
-        if ((self.bb[0] | self.bb[1]) ^ self.bb[Piece::FLAG]) == 0 {
+        // If all bitboards except the immovable pieces are empty the game is drawn
+        else if ((self.bb[0] | self.bb[1]) ^ immovable) == 0 {
             self.state = GameState::Draw;
-            return;
         }
-
         // If the current side has no pieces the other wins
-        if (self.bb[stm] & !self.bb[Piece::FLAG]) == 0 {
+        else if (self.bb[stm] & !immovable) == 0 {
             self.state = GameState::Loss;
-            return;
         }
-
         // If other side has no pieces the current side wins
-        if (self.bb[stm ^ 1] & !self.bb[Piece::FLAG]) == 0 {
+        else if (self.bb[stm ^ 1] & !immovable) == 0 {
             self.state = GameState::Win;
-            return;
         }
     }
 
@@ -235,13 +234,15 @@ impl Position {
         }
 
         let stm = usize::from(self.stm);
-
+        let attacks = self.attacks(stm ^ 1);
         let occ = self.bb[0] | self.bb[1] | Position::LAKES;
+
         let from_mask = if self.last[stm].from != u8::MAX {
             1u64 << self.last[stm].from
         } else {
             0
         };
+
         // Remove path from attacks on third repetition
         let square_mask = if self.last[stm].moves == 2 {
             self.last[stm].path | from_mask
@@ -249,7 +250,12 @@ impl Position {
             0
         };
 
-        let attacks = self.attacks(stm ^ 1);
+        // If last move was capture, all next moves must display the rank of the piece
+        let flag = if self.attacker != 0 {
+            Flag::ATTACKED | (self.attacker << 5)
+        } else {
+            0
+        };
 
         for piece in Piece::SPY..=Piece::MARSHAL {
             let mut piece_mask = (self.bb[piece] | self.bb[Piece::UNKNOWN]) & self.bb[stm];
@@ -283,11 +289,11 @@ impl Position {
                 bitboard_loop!(
                     captures,
                     to,
-                    moves.push(from, to, Flag::CAPTURE | chance_flag, piece)
+                    moves.push(from, to, Flag::CAPTURE | chance_flag | flag, piece)
                 );
 
                 // If opponent's piece is chasing then all quiet moves are evading
-                let flag = if (self.attacks & from_bb) != 0 {
+                let moving_flag = if (self.attacks & from_bb) != 0 {
                     Flag::EVADING
                 } else {
                     Flag::QUIET
@@ -299,7 +305,11 @@ impl Position {
                     quiets ^= self.repetition(stack, stm, from, repetitions);
                 }
 
-                bitboard_loop!(quiets, to, moves.push(from, to, flag | chance_flag, piece));
+                bitboard_loop!(
+                    quiets,
+                    to,
+                    moves.push(from, to, moving_flag | chance_flag | flag, piece)
+                );
             });
         }
 
