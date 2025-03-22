@@ -66,7 +66,7 @@ impl Node {
             .iter()
             .max_by_key(|c| {
                 let u = c.reward() / c.visits() as f32;
-                let v = (2.0 * (c.availability() as f32).ln() / c.visits() as f32).sqrt();
+                let v = 0.7 * ((c.availability() as f32).ln() / c.visits() as f32).sqrt();
 
                 OrderedFloat::from(u + v)
             })
@@ -84,21 +84,25 @@ impl Node {
 
     pub fn propagate_state(&self, child_state: GameState) {
         match child_state {
-            // If all child nodes are winning this node must be losing
-            GameState::Win => {
-                let proven_loss = !self.children().any(|c| c.game_state() != GameState::Win);
+            // If all child nodes are losing then this node is winning
+            GameState::Loss => {
+                let proven_loss = !self.children().any(|c| c.game_state() != GameState::Loss);
                 if proven_loss {
-                    *self.state.borrow_mut() = GameState::Loss;
+                    *self.state.borrow_mut() = GameState::Win;
                 }
             }
-            // Losing child node results in win
-            GameState::Loss => *self.state.borrow_mut() = GameState::Win,
+            // If child node is winning then parent is losing
+            GameState::Win => *self.state.borrow_mut() = GameState::Loss,
             _ => {}
         }
     }
 
     pub fn children(&self) -> impl Iterator<Item = Rc<Node>> {
         self.children.borrow().clone().into_iter()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.children.borrow().is_empty()
     }
 
     pub fn game_state(&self) -> GameState {
