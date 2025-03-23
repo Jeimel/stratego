@@ -34,18 +34,31 @@ c_enum!(Piece {
 });
 
 impl Piece {
-    pub fn rank(piece: usize) -> usize {
+    pub const PIECES: [usize; 7] = [
+        Piece::FLAG,
+        Piece::SPY,
+        Piece::SCOUT,
+        Piece::MINER,
+        Piece::GENERAL,
+        Piece::MARSHAL,
+        Piece::BOMB,
+    ];
+
+    pub fn rank(piece: usize) -> String {
         match piece {
-            Piece::SPY => 1,
-            Piece::SCOUT => 2,
-            Piece::MINER => 3,
-            Piece::GENERAL => 9,
-            Piece::MARSHAL => 10,
+            Piece::SPY => "1",
+            Piece::SCOUT => "2",
+            Piece::MINER => "3",
+            Piece::GENERAL => "9",
+            Piece::MARSHAL => "10",
+            Piece::BOMB => "b",
+            Piece::FLAG => "f",
             _ => {
-                println!("Unreachable {piece}");
+                println!("piece {}", piece);
                 unreachable!()
             }
         }
+        .to_string()
     }
 }
 
@@ -53,8 +66,6 @@ c_enum!(Flag {
     QUIET: u8 = 1,
     CAPTURE: u8 = 2,
     EVADING: u8 = 4,
-    CHANCE: u8 = 8,
-    ATTACKED: u8 = 16,
 });
 
 pub struct Zobrist(());

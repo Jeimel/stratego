@@ -17,12 +17,6 @@ impl std::fmt::Display for Move {
             format!("{}{}", (b'a' + file) as char, rank + 1)
         }
 
-        let prefix = if (self.flag & Flag::ATTACKED) != 0 {
-            format!("{}x", Piece::rank(usize::from(self.flag >> 5)))
-        } else {
-            String::new()
-        };
-
         let suffix = if (self.flag & Flag::CAPTURE) != 0 {
             format!("x{}", Piece::rank(self.piece as usize))
         } else {
@@ -31,8 +25,7 @@ impl std::fmt::Display for Move {
 
         write!(
             f,
-            "{}{}{}{}",
-            prefix,
+            "{}{}{}",
             to_notation(self.from),
             to_notation(self.to),
             suffix
@@ -41,15 +34,13 @@ impl std::fmt::Display for Move {
 }
 
 pub struct MoveList {
-    length: usize,
-    moves: [Move; 218],
+    moves: Vec<Move>,
 }
 
 impl Default for MoveList {
     fn default() -> Self {
         MoveList {
-            moves: [Move::default(); 218],
-            length: 0,
+            moves: Vec::with_capacity(50),
         }
     }
 }
@@ -64,28 +55,26 @@ impl std::ops::Index<usize> for MoveList {
 
 impl MoveList {
     pub fn iter(&self) -> impl Iterator<Item = Move> + '_ {
-        self.moves[..self.length].iter().cloned()
+        self.moves.iter().cloned()
     }
 
-    pub fn length(&self) -> usize {
-        self.length
+    pub fn len(&self) -> usize {
+        self.moves.len()
     }
 
     pub fn push(&mut self, from: u8, to: u8, flag: u8, piece: u8) {
-        self.moves[self.length] = Move {
+        self.moves.push(Move {
             from,
             to,
             flag,
             piece,
-        };
-        self.length += 1;
+        });
     }
 }
 
 #[derive(Clone, Default)]
 pub struct MoveStack {
     stack: Vec<u64>,
-    ply: u16,
 }
 
 impl MoveStack {
@@ -108,12 +97,10 @@ impl MoveStack {
     }
 
     pub fn push(&mut self, hash: u64) {
-        self.ply += 1;
         self.stack.push(hash);
     }
 
     pub fn pop(&mut self) {
-        self.ply -= 1;
         self.stack.pop();
     }
 }
