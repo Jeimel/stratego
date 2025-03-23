@@ -97,10 +97,16 @@ impl Tournament {
                 break;
             }
 
-            let mov = self.engines[indices[stm]].go(pos.clone());
+            let player_pos = if self.engines[indices[stm]].cheating() {
+                pos.clone()
+            } else {
+                pos.anonymize(stm ^ 1)
+            };
+
+            let mov = self.engines[indices[stm]].go(player_pos);
             moves.push(format!("{}", mov));
 
-            println!("info move {} stm {} pos {}", mov, stm, pos_str);
+            // println!("info move {} stm {} pos {}", mov, stm, pos_str);
 
             let mov = gen.iter().find(|m| format!("{}", m) == format!("{}", mov));
             if mov.is_none() {
