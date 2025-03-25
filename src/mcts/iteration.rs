@@ -1,9 +1,9 @@
-use super::node::Node;
+use super::{node::Node, Search};
 use crate::stratego::{GameState, StrategoState};
 use rand::seq::IteratorRandom;
 use std::rc::{Rc, Weak};
 
-pub fn execute_one(pos: &mut StrategoState, mut node: Rc<Node>) {
+pub fn execute_one<S: Search>(pos: &mut StrategoState, mut node: Rc<Node>, search: &S) {
     let mut rng = rand::rng();
 
     let mut moves: Vec<_>;
@@ -16,7 +16,7 @@ pub fn execute_one(pos: &mut StrategoState, mut node: Rc<Node>) {
             break;
         }
 
-        node = node.select(&moves).unwrap();
+        node = search.select(&node, &moves).unwrap();
         pos.make(node.mov.unwrap());
     }
 
@@ -26,18 +26,15 @@ pub fn execute_one(pos: &mut StrategoState, mut node: Rc<Node>) {
         node = node.add(mov, pos.game_state());
     }
 
-    let mut reward = utility(pos);
+    let mut reward = utility(pos, search);
 
-    let (mut previous, mut state) = (node, GameState::default());
+    let mut previous = node;
     loop {
         previous.update(reward);
-        previous.propagate_state(state);
-
         reward = -reward;
 
         let parent = previous.parent.as_ref().and_then(Weak::upgrade);
         if let Some(node) = parent {
-            state = previous.game_state();
             previous = node;
         } else {
             break;
@@ -45,9 +42,9 @@ pub fn execute_one(pos: &mut StrategoState, mut node: Rc<Node>) {
     }
 }
 
-fn utility(pos: &mut StrategoState) -> f32 {
+fn utility<S: Search>(pos: &mut StrategoState, search: &S) -> f32 {
     match pos.game_state() {
-        GameState::Ongoing => pos.rollout(),
+        GameState::Ongoing => search.value(pos),
         GameState::Win => 1.0,
         GameState::Draw => 0.0,
         GameState::Loss => -1.0,
