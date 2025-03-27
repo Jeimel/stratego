@@ -1,30 +1,46 @@
-use super::mcts::MCTS;
+use super::{iteration, node::Node, UCB};
 use crate::stratego::{Move, StrategoState};
+use std::rc::Rc;
 
 pub struct ISMCTS {
-    mcts: MCTS,
-    determinizations: usize,
+    root: Rc<Node>,
+    iterations: usize,
 }
 
+impl UCB for ISMCTS {}
+
 impl ISMCTS {
-    pub fn new(iterations: usize, determinizations: usize) -> Self {
+    pub fn new(iterations: usize) -> Self {
         Self {
-            mcts: MCTS::new(iterations / determinizations),
-            determinizations,
+            root: Node::new(),
+            iterations,
         }
     }
 
     pub fn go(&mut self, pos: &StrategoState) -> Move {
-        // Reset current position, so no subtree is used
-        self.mcts.set_pos(None);
-        self.mcts.set_root(&pos);
+        self.root = Node::new();
 
-        for _ in 0..self.determinizations {
-            let det = pos.determination();
-            self.mcts.run(&det);
+        for _ in 0..self.iterations {
+            let mut det = pos.determination();
+            let node = Rc::clone(&self.root);
+
+            iteration::execute_one(&mut det, node, self);
         }
 
-        self.mcts
+        let mut children: Vec<_> = self.root.children().collect();
+
+        children.sort_by_key(|c| c.visits());
+        for c in children {
+            println!(
+                "info move {} visits {} reward {} availability {}",
+                c.mov.unwrap(),
+                c.visits(),
+                c.reward(),
+                c.availability(),
+            );
+        }
+
+        self.root
             .max_visits()
             .map(|c| c.mov.unwrap_or_default())
             .unwrap_or_default()
