@@ -13,12 +13,6 @@ pub struct InformationSet {
     bb: [u64; 2],
 }
 
-impl std::fmt::Display for InformationSet {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?} {:?}", self.unknown, self.bb)
-    }
-}
-
 impl InformationSet {
     // All pieces are `UNKNOWN`
     pub fn from(board: &Position) -> Self {

@@ -29,8 +29,6 @@ pub struct StrategoState {
 
 impl std::fmt::Display for StrategoState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        println!("{}", self.info);
-
         write!(f, "{}", self.board)
     }
 }
