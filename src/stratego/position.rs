@@ -28,37 +28,54 @@ impl std::fmt::Display for Position {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         const DELIMITER: &str = concat!("+---+---+---+---+---+---+---+---+", '\n');
 
-        let mut pos = [' '; 64];
-        for piece in Piece::FLAG..=Piece::BOMB {
-            let mut piece_mask = self.bb[piece];
-
-            bitboard_loop!(piece_mask, sq, {
-                let bb = 1 << sq as u64;
-                let offset = if (bb & self.bb[0]) != 0 { 0 } else { 8 };
-
-                pos[sq as usize] = Position::SYMBOLS[piece + offset - 2];
-            });
-        }
+        let mut pos = self.chars();
 
         let mut lakes = Position::LAKES;
         bitboard_loop!(lakes, sq, pos[sq as usize] = '~');
 
         let mut pos_str = String::from(DELIMITER);
+        let mut notation = String::new();
 
         for rank in (0..8).rev() {
             let start = rank * 8;
-            let rank_str = &pos[start..(start + 8)]
-                .iter()
-                .fold(String::new(), |mut acc, &c| {
-                    acc.push_str(&format!("| {c} "));
-                    acc
-                });
 
-            pos_str.push_str(&format!("{}| {}\n{}", rank_str, rank + 1, DELIMITER));
+            let mut rank_notation = String::new();
+            let mut rank_board = String::new();
+            let mut spaces = 0;
+
+            for &c in &pos[start..(start + 8)] {
+                rank_board.push_str(&format!("| {c} "));
+
+                if c == ' ' || c == '~' {
+                    spaces += 1;
+
+                    continue;
+                }
+
+                if spaces > 0 {
+                    rank_notation.push_str(&spaces.to_string());
+                    spaces = 0;
+                }
+
+                rank_notation.push(c);
+            }
+
+            if spaces > 0 {
+                rank_notation.push_str(&spaces.to_string());
+            }
+
+            notation.push_str(&format!("{}/", rank_notation));
+            pos_str.push_str(&format!("{}| {}\n{}", rank_board, rank + 1, DELIMITER));
         }
 
+        // Remove last backslash
+        notation.pop();
+
+        notation.push(' ');
+        notation.push(if self.stm { 'b' } else { 'r' });
+
         pos_str.push_str("  a   b   c   d   e   f   g   h");
-        write!(f, "{pos_str}")
+        write!(f, "{pos_str}\n\nNotation: {}", notation)
     }
 }
 
@@ -133,13 +150,39 @@ impl Position {
         self.half as usize
     }
 
+    pub fn get(&self, index: usize) -> u64 {
+        self.bb[index]
+    }
+
+    pub fn toggle(&mut self, stm: usize, piece: usize, sq: u8) {
+        let bb = 1u64 << sq;
+
+        self.hash ^= Zobrist::get(stm, sq as usize);
+
+        self.bb[stm] ^= bb;
+        self.bb[piece] ^= bb;
+    }
+
+    pub fn piece(&self, sq: u8) -> usize {
+        let bb = 1u64 << sq;
+
+        self.bb
+            .iter()
+            .skip(2)
+            .position(|piece_bb| (piece_bb & bb) != 0)
+            .unwrap_or(usize::MAX - 2)
+            .wrapping_add(2)
+    }
+
     pub fn make(&mut self, mov: &Move) {
         let stm = usize::from(self.stm);
         let piece = mov.piece as usize;
 
-        // Increase two-squares counter if moving back to previous square or traversing along path
+        // Increase two-squares counter if moving back to previous square or
+        // traversing along path (piece must be on path already)
         self.last[stm].moves = if (self.last[stm].from == mov.to && self.last[stm].to == mov.from)
-            || (self.last[stm].path & (1u64 << mov.to)) != 0
+            || ((self.last[stm].path & (1u64 << mov.to)) != 0
+                && (self.last[stm].path & (1u64 << mov.from)) != 0)
         {
             self.last[stm].moves + 1
         } else {
@@ -162,11 +205,10 @@ impl Position {
         // Check if next move can't be repetitive
         self.evading[stm] = (mov.flag & Flag::EVADING) != 0;
 
-        if (mov.flag & Flag::CHANCE) != 0 {
-            // Remove piece from 'UNKNOWN' bitboard
+        // Remove piece from old square
+        if ((1u64 << mov.from) & self.bb[Piece::UNKNOWN]) != 0 {
             self.toggle(stm, Piece::UNKNOWN, mov.from);
         } else {
-            // Remove piece from old square
             self.toggle(stm, piece, mov.from);
         }
 
@@ -179,31 +221,33 @@ impl Position {
             return;
         }
 
+        // Captures can only be done by piece with known rank
+        assert!(piece != Piece::UNKNOWN);
+
         // Reset if board changes because of capture
         self.half = 0;
         self.attacker = mov.piece;
 
         let other = self.piece(mov.to);
 
-        // Spy can capture general or only miner can defuse bomb
-        if (piece == Piece::SPY && other == Piece::GENERAL)
+        let ordering = if (piece == Piece::SPY && piece == Piece::MARSHAL)
             || (piece == Piece::MINER && other == Piece::BOMB)
         {
-            self.toggle(stm ^ 1, other, mov.to);
-            self.toggle(stm, piece, mov.to);
+            // Spy can capture general or miner can defuse bomb
+            Ordering::Greater
+        } else {
+            piece.cmp(&other)
+        };
 
-            return;
-        }
-
-        match piece.cmp(&other) {
-            // Do nothing, because piece is already removed
+        match ordering {
+            // Do nothing, because `attacker` is already removed
             Ordering::Less => {}
-            // Delete only other, because piece is already removed
+            // Delete only other, because `attacker` is already removed
             Ordering::Equal => self.toggle(stm ^ 1, other, mov.to),
-            // Delete other and add piece
+            // Add `attacker` again
             Ordering::Greater => {
-                self.toggle(stm ^ 1, other, mov.to);
                 self.toggle(stm, piece, mov.to);
+                self.toggle(stm ^ 1, other, mov.to);
             }
         }
 
@@ -229,6 +273,7 @@ impl Position {
 
     pub fn gen(&self, stack: &MoveStack) -> MoveList {
         let mut moves = MoveList::default();
+        // If opponent has won the game in the last turn, no moves are generated
         if self.state != GameState::Ongoing {
             return moves;
         }
@@ -250,30 +295,15 @@ impl Position {
             0
         };
 
-        // If last move was capture, all next moves must display the rank of the piece
-        let flag = if self.attacker != 0 {
-            Flag::ATTACKED | (self.attacker << 5)
-        } else {
-            0
-        };
-
         for piece in Piece::SPY..=Piece::MARSHAL {
-            let mut piece_mask = (self.bb[piece] | self.bb[Piece::UNKNOWN]) & self.bb[stm];
+            let mut piece_mask = self.bb[piece] & self.bb[stm];
 
             bitboard_loop!(piece_mask, from, {
+                let from_bb = 1u64 << from;
+
                 let mut attack_mask = match piece {
                     Piece::SCOUT => attacks::ranged(from as usize, occ),
                     _ => attacks::orthogonal(from as usize),
-                };
-
-                let from_bb = 1u64 << from;
-                let piece = piece as u8;
-
-                // If piece on `from` is unknown all possibilities must be generated
-                let chance_flag = if (from_bb & self.bb[Piece::UNKNOWN]) != 0 {
-                    Flag::CHANCE
-                } else {
-                    0
                 };
 
                 // Moving back to previous square/path is forbidden on third time
@@ -281,19 +311,11 @@ impl Position {
                     attack_mask ^= square_mask;
                 }
 
-                // `ranged` and `orthogonal` don't subtract `LAKES` implicitly
-                let mut captures = attack_mask & self.bb[stm ^ 1] & !Position::LAKES;
                 // `occ` already includes `LAKES`
                 let mut quiets = attack_mask & !occ;
 
-                bitboard_loop!(
-                    captures,
-                    to,
-                    moves.push(from, to, Flag::CAPTURE | chance_flag | flag, piece)
-                );
-
                 // If opponent's piece is chasing then all quiet moves are evading
-                let moving_flag = if (self.attacks & from_bb) != 0 {
+                let move_flag = if (self.attacks & from_bb) != 0 {
                     Flag::EVADING
                 } else {
                     Flag::QUIET
@@ -305,10 +327,15 @@ impl Position {
                     quiets ^= self.repetition(stack, stm, from, repetitions);
                 }
 
+                bitboard_loop!(quiets, to, moves.push(from, to, move_flag, piece as u8));
+
+                // `ranged` and `orthogonal` don't subtract `LAKES` implicitly
+                let mut captures = attack_mask & self.bb[stm ^ 1] & !Position::LAKES;
+
                 bitboard_loop!(
-                    quiets,
+                    captures,
                     to,
-                    moves.push(from, to, moving_flag | chance_flag | flag, piece)
+                    moves.push(from, to, Flag::CAPTURE, piece as u8)
                 );
             });
         }
@@ -339,23 +366,24 @@ impl Position {
         repetitions
     }
 
-    fn piece(&self, sq: u8) -> usize {
-        let bb = 1u64 << sq;
+    fn chars(&self) -> [char; 64] {
+        let mut pos = [' '; 64];
 
-        self.bb
-            .iter()
-            .skip(2)
-            .position(|piece_bb| (piece_bb & bb) != 0)
-            .unwrap_or(usize::MAX - 2)
-            .wrapping_add(2)
-    }
+        for piece in Piece::FLAG..=Piece::BOMB {
+            let mut piece_mask = self.bb[piece];
 
-    fn toggle(&mut self, stm: usize, piece: usize, sq: u8) {
-        let bb = 1u64 << sq;
+            bitboard_loop!(piece_mask, sq, {
+                let bb = 1 << sq as u64;
+                let offset = if (bb & self.bb[0]) != 0 { 0 } else { 8 };
 
-        self.hash ^= Zobrist::get(stm, sq as usize);
+                if pos[sq as usize] != ' ' {
+                    unreachable!()
+                }
 
-        self.bb[stm] ^= bb;
-        self.bb[piece] ^= bb;
+                pos[sq as usize] = Position::SYMBOLS[piece + offset - 2];
+            });
+        }
+
+        pos
     }
 }
