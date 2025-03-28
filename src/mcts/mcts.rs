@@ -1,4 +1,4 @@
-use super::{iteration, node::Node, UCB};
+use super::{iteration, node::Node, UCT};
 use crate::stratego::{Move, StrategoState};
 use std::rc::Rc;
 
@@ -8,7 +8,7 @@ pub struct MCTS {
     iterations: usize,
 }
 
-impl UCB for MCTS {}
+impl UCT for MCTS {}
 
 impl MCTS {
     pub fn new(iterations: usize) -> Self {

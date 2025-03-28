@@ -18,9 +18,9 @@ pub trait Search {
     fn value(&self, pos: &mut StrategoState) -> f32;
 }
 
-trait UCB {}
+trait UCT {}
 
-impl<T: UCB> Search for T {
+impl<T: UCT> Search for T {
     fn select(&self, node: &Node, moves: &[Move]) -> Option<Rc<Node>> {
         let children = node.children();
 
