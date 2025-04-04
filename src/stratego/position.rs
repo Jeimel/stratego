@@ -157,7 +157,7 @@ impl Position {
     pub fn toggle(&mut self, stm: usize, piece: usize, sq: u8) {
         let bb = 1u64 << sq;
 
-        self.hash ^= Zobrist::get(stm, sq as usize);
+        self.hash ^= Zobrist::get(stm, sq as usize, piece);
 
         self.bb[stm] ^= bb;
         self.bb[piece] ^= bb;
@@ -324,7 +324,7 @@ impl Position {
                 // Piece can't move back to old position when chasing except the previous position
                 let repetitions = quiets & attacks & !from_mask;
                 if self.evading[stm ^ 1] && repetitions != 0 {
-                    quiets ^= self.repetition(stack, stm, from, repetitions);
+                    quiets ^= self.repetition(stack, stm, piece, from, repetitions);
                 }
 
                 bitboard_loop!(quiets, to, moves.push(from, to, move_flag, piece as u8));
@@ -352,13 +352,13 @@ impl Position {
         attacks
     }
 
-    fn repetition(&self, stack: &MoveStack, stm: usize, from: u8, bb: u64) -> u64 {
-        let hash = self.hash ^ Zobrist::get(stm, from as usize);
+    fn repetition(&self, stack: &MoveStack, stm: usize, piece: usize, from: u8, bb: u64) -> u64 {
+        let hash = self.hash ^ Zobrist::get(stm, from as usize, piece);
 
         let mut repetitions = 0;
         let mut bb = bb;
         bitboard_loop!(bb, sq, {
-            if stack.repetition(self.half(), hash ^ Zobrist::get(stm, sq as usize)) {
+            if stack.repetition(self.half(), hash ^ Zobrist::get(stm, sq as usize, piece)) {
                 repetitions |= 1u64 << sq;
             }
         });

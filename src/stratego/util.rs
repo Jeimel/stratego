@@ -71,9 +71,9 @@ c_enum!(Flag {
 pub struct Zobrist(());
 
 impl Zobrist {
-    const HASHES: [u64; 2 * 64] = {
+    const HASHES: [u64; 2 * 8 * 64] = {
         let mut seed: u64 = 1070372;
-        let mut hashes = [0u64; 2 * 64];
+        let mut hashes = [0u64; 2 * 8 * 64];
 
         let mut i = 0;
         while i < hashes.len() {
@@ -88,7 +88,7 @@ impl Zobrist {
         hashes
     };
 
-    pub fn get(stm: usize, sq: usize) -> u64 {
-        Zobrist::HASHES[(stm + 1) * sq]
+    pub fn get(stm: usize, sq: usize, piece: usize) -> u64 {
+        Zobrist::HASHES[stm * 8 * 64 + (piece - 2) * 64 + sq]
     }
 }
