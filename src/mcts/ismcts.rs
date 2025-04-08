@@ -3,7 +3,6 @@ use crate::stratego::{Move, StrategoState};
 use std::rc::Rc;
 
 pub struct ISMCTS {
-    root: Rc<Node>,
     iterations: usize,
 }
 
@@ -11,23 +10,20 @@ impl UCT for ISMCTS {}
 
 impl ISMCTS {
     pub fn new(iterations: usize) -> Self {
-        Self {
-            root: Node::new(),
-            iterations,
-        }
+        Self { iterations }
     }
 
     pub fn go(&mut self, pos: &StrategoState) -> Move {
-        self.root = Node::new();
+        let root = Node::new();
 
         for _ in 0..self.iterations {
             let mut det = pos.determination();
-            let node = Rc::clone(&self.root);
+            let node = Rc::clone(&root);
 
             iteration::execute_one(&mut det, node, self);
         }
 
-        let mut children: Vec<_> = self.root.children().collect();
+        let mut children: Vec<_> = root.children().collect();
 
         children.sort_by_key(|c| c.visits());
         for c in children {
@@ -40,8 +36,7 @@ impl ISMCTS {
             );
         }
 
-        self.root
-            .max_visits()
+        root.max_visits()
             .map(|c| c.mov.unwrap_or_default())
             .unwrap_or_default()
     }

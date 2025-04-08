@@ -25,7 +25,6 @@ impl MCTS {
         self.run(pos);
 
         let mut children: Vec<_> = self.root.children().collect();
-
         children.sort_by_key(|c| c.visits());
         for c in children {
             println!(
