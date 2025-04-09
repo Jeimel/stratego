@@ -1,17 +1,41 @@
 use crate::stratego::{GameState, Move};
 use std::{
-    cell::RefCell,
+    cell::{Ref, RefCell, RefMut},
     rc::{Rc, Weak},
 };
 
+pub struct NodeStats {
+    pub visits: usize,
+    pub availability: usize,
+    pub reward: f32,
+}
+
+impl Default for NodeStats {
+    fn default() -> Self {
+        Self {
+            visits: 0,
+            availability: 0,
+            reward: 0.0,
+        }
+    }
+}
+
+impl NodeStats {
+    pub fn new() -> Self {
+        Self {
+            visits: 0,
+            availability: 1,
+            reward: 0.0,
+        }
+    }
+}
+
 pub struct Node {
-    pub mov: Option<Move>,
-    pub parent: Option<Weak<Node>>,
+    mov: Option<Move>,
+    parent: Option<Weak<Node>>,
     state: RefCell<GameState>,
     children: RefCell<Vec<Rc<Node>>>,
-    visits: RefCell<usize>,
-    pub availability: RefCell<usize>,
-    reward: RefCell<f32>,
+    stats: RefCell<NodeStats>,
 }
 
 impl Node {
@@ -21,9 +45,7 @@ impl Node {
             parent: None,
             state: RefCell::new(GameState::default()),
             children: Default::default(),
-            visits: RefCell::new(0),
-            availability: RefCell::new(0),
-            reward: RefCell::new(0.0),
+            stats: RefCell::new(NodeStats::default()),
         })
     }
 
@@ -36,9 +58,7 @@ impl Node {
             parent: Some(parent.clone()),
             children: Default::default(),
             state: RefCell::new(state),
-            visits: RefCell::new(0),
-            availability: RefCell::new(1),
-            reward: RefCell::new(0.0),
+            stats: RefCell::new(NodeStats::new()),
         });
 
         children.push(Rc::clone(&child));
@@ -54,8 +74,18 @@ impl Node {
     }
 
     pub fn update(&self, reward: f32) {
-        *self.visits.borrow_mut() += 1;
-        *self.reward.borrow_mut() += reward;
+        let mut stats = self.stats.borrow_mut();
+
+        stats.visits += 1;
+        stats.reward += reward;
+    }
+
+    pub fn mov(&self) -> Option<Move> {
+        self.mov
+    }
+
+    pub fn parent(&self) -> Option<Rc<Node>> {
+        self.parent.as_ref().and_then(Weak::upgrade)
     }
 
     pub fn children(&self) -> impl Iterator<Item = Rc<Node>> {
@@ -70,19 +100,19 @@ impl Node {
         *self.state.borrow()
     }
 
-    pub fn visits(&self) -> usize {
-        *self.visits.borrow()
+    pub fn stats(&self) -> Ref<'_, NodeStats> {
+        self.stats.borrow()
+    }
+
+    pub fn stats_mut(&self) -> RefMut<'_, NodeStats> {
+        self.stats.borrow_mut()
+    }
+
+    pub fn parent_visits(&self) -> usize {
+        self.parent().unwrap().stats.borrow().visits
     }
 
     pub fn max_visits(&self) -> Option<Rc<Node>> {
-        self.children().max_by_key(|c| c.visits())
-    }
-
-    pub fn availability(&self) -> usize {
-        *self.availability.borrow()
-    }
-
-    pub fn reward(&self) -> f32 {
-        *self.reward.borrow()
+        self.children().max_by_key(|c| c.stats().visits)
     }
 }

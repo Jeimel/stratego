@@ -25,18 +25,19 @@ impl MCTS {
         self.run(pos);
 
         let mut children: Vec<_> = self.root.children().collect();
-        children.sort_by_key(|c| c.visits());
+        children.sort_by_key(|c| c.stats().visits);
         for c in children {
+            let stats = c.stats();
+
             println!(
-                "info move {} visits {} reward {} availability {}",
-                c.mov.unwrap(),
-                c.visits(),
-                c.reward(),
-                c.availability(),
+                "info move {} visits {} reward {}",
+                c.mov().unwrap(),
+                stats.visits,
+                stats.reward,
             );
         }
 
-        self.root.max_visits().unwrap().mov.unwrap()
+        self.root.max_visits().unwrap().mov().unwrap()
     }
 
     pub fn run(&mut self, pos: &StrategoState) {
@@ -92,7 +93,7 @@ impl MCTS {
 
         for child in node.children() {
             let mut child_board = old.clone();
-            child_board.make(child.mov.unwrap());
+            child_board.make(child.mov().unwrap());
 
             let found = self.recursive_find(child, &mut child_board, new, depth - 1);
 

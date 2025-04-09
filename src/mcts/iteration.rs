@@ -1,7 +1,7 @@
 use super::{node::Node, Search};
 use crate::stratego::{GameState, StrategoState};
 use rand::seq::IteratorRandom;
-use std::rc::{Rc, Weak};
+use std::rc::Rc;
 
 pub fn execute_one<S: Search>(pos: &mut StrategoState, mut node: Rc<Node>, search: &S) {
     let mut rng = rand::rng();
@@ -17,7 +17,7 @@ pub fn execute_one<S: Search>(pos: &mut StrategoState, mut node: Rc<Node>, searc
         }
 
         node = search.select(&node, &moves).unwrap();
-        pos.make(node.mov.unwrap());
+        pos.make(node.mov().unwrap());
     }
 
     if let Some(mov) = untried.into_iter().choose(&mut rng) {
@@ -33,7 +33,7 @@ pub fn execute_one<S: Search>(pos: &mut StrategoState, mut node: Rc<Node>, searc
         previous.update(reward);
         reward = -reward;
 
-        let parent = previous.parent.as_ref().and_then(Weak::upgrade);
+        let parent = previous.parent();
         if let Some(node) = parent {
             previous = node;
         } else {
