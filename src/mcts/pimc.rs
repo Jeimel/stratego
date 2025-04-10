@@ -36,14 +36,18 @@ impl PIMC {
         }
 
         let mut children: Vec<_> = root.iter().collect();
-        children.sort_by_key(|c| c.1.visits);
-        for c in &children {
-            let stats = c.1;
 
-            println!(
-                "info move {} visits {} reward {}",
-                c.0, stats.visits, stats.reward,
-            );
+        #[cfg(feature = "info")]
+        {
+            children.sort_by_key(|c| c.1.visits);
+            for c in &children {
+                let stats = c.1;
+
+                println!(
+                    "info move {} visits {} reward {}",
+                    c.0, stats.visits, stats.reward,
+                );
+            }
         }
 
         *children.iter().max_by_key(|c| c.1.visits).unwrap().0

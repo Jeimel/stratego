@@ -24,17 +24,20 @@ impl MCTS {
         self.set_root(pos);
         self.run(pos);
 
-        let mut children: Vec<_> = self.root.children().collect();
-        children.sort_by_key(|c| c.stats().visits);
-        for c in children {
-            let stats = c.stats();
+        #[cfg(feature = "info")]
+        {
+            let mut children: Vec<_> = self.root.children().collect();
+            children.sort_by_key(|c| c.stats().visits);
+            for c in children {
+                let stats = c.stats();
 
-            println!(
-                "info move {} visits {} reward {}",
-                c.mov().unwrap(),
-                stats.visits,
-                stats.reward,
-            );
+                println!(
+                    "info move {} visits {} reward {}",
+                    c.mov().unwrap(),
+                    stats.visits,
+                    stats.reward,
+                );
+            }
         }
 
         self.root.max_visits().unwrap().mov().unwrap()

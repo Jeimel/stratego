@@ -75,19 +75,21 @@ impl ISMCTS {
             iteration::execute_one(&mut det, node, self);
         }
 
-        let mut children: Vec<_> = root.children().collect();
+        #[cfg(feature = "info")]
+        {
+            let mut children: Vec<_> = root.children().collect();
+            children.sort_by_key(|c| c.stats().visits);
+            for c in children {
+                let stats = c.stats();
 
-        children.sort_by_key(|c| c.stats().visits);
-        for c in children {
-            let stats = c.stats();
-
-            println!(
-                "info move {} visits {} reward {} availability {}",
-                c.mov().unwrap(),
-                stats.visits,
-                stats.reward,
-                stats.availability,
-            );
+                println!(
+                    "info move {} visits {} reward {} availability {}",
+                    c.mov().unwrap(),
+                    stats.visits,
+                    stats.reward,
+                    stats.availability,
+                );
+            }
         }
 
         root.max_visits().unwrap().mov().unwrap()
