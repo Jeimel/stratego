@@ -35,6 +35,7 @@ impl PIMC {
             })
         }
 
+        #[allow(unused_mut)]
         let mut children: Vec<_> = root.iter().collect();
 
         #[cfg(feature = "info")]
