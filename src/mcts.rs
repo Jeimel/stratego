@@ -2,9 +2,11 @@ mod ismcts;
 mod iteration;
 mod mcts;
 mod node;
+mod pimc;
 
 pub use ismcts::ISMCTS;
 pub use mcts::MCTS;
+pub use pimc::PIMC;
 
 use crate::stratego::{GameState, Move, StrategoState};
 use node::Node;
@@ -22,23 +24,25 @@ trait UCT {}
 
 impl<T: UCT> Search for T {
     fn select(&self, node: &Node, moves: &[Move]) -> Option<Rc<Node>> {
+        const C: f32 = 0.7;
+
         let children = node.children();
 
         let legal: Vec<_> = children
-            .filter(|c| moves.iter().any(|m| c.mov.as_ref().unwrap() == m))
+            .filter(|c| moves.iter().any(|m| c.mov().unwrap() == *m))
             .collect();
 
         let choice = legal
             .iter()
             .max_by_key(|c| {
-                let u = c.reward() / c.visits() as f32;
-                let v = 0.7 * ((c.availability() as f32).ln() / c.visits() as f32).sqrt();
+                let stats = c.stats();
+
+                let u = stats.reward / stats.visits as f32;
+                let v = C * ((c.parent_visits() as f32).ln() / stats.visits as f32).sqrt();
 
                 OrderedFloat::from(u + v)
             })
             .cloned();
-
-        legal.iter().for_each(|c| *c.availability.borrow_mut() += 1);
 
         choice
     }

@@ -1,6 +1,6 @@
 use crate::stratego::util::{Flag, Piece};
 
-#[derive(Copy, Clone, Default, PartialEq)]
+#[derive(Copy, Clone, Default, Eq, PartialEq, Hash)]
 pub struct Move {
     pub from: u8,
     pub to: u8,
