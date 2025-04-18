@@ -1,17 +1,23 @@
 use super::{iteration, node::Node, Search};
-use crate::stratego::{GameState, Move, StrategoState};
+use crate::{
+    policy::Policy,
+    select::Select,
+    stratego::{Move, StrategoState},
+    value::Value,
+};
 use ordered_float::OrderedFloat;
-use rand::{rng, seq::IteratorRandom};
-use std::rc::Rc;
+use rand::distr::weighted::WeightedIndex;
+use std::sync::Arc;
 
-pub struct ISMCTS {
+pub struct ISMCTS<const MULTIPLE: bool> {
     iterations: usize,
+    value: Value,
+    policy: Policy,
+    select: Select,
 }
 
-impl Search for ISMCTS {
-    fn select(&self, node: &Node, moves: &[Move]) -> Option<Rc<Node>> {
-        const C: f32 = 0.7;
-
+impl<const MULTIPLE: bool> Search for ISMCTS<MULTIPLE> {
+    fn select(&self, node: &Node, moves: &[Move]) -> Option<Arc<Node>> {
         let children = node.children();
 
         let legal: Vec<_> = children
@@ -20,14 +26,7 @@ impl Search for ISMCTS {
 
         let choice = legal
             .iter()
-            .max_by_key(|c| {
-                let stats = c.stats();
-
-                let u = stats.reward / stats.visits as f32;
-                let v = C * ((stats.availability as f32).ln() / stats.visits as f32).sqrt();
-
-                OrderedFloat::from(u + v)
-            })
+            .max_by_key(|c| OrderedFloat::from((self.select)(c)))
             .cloned();
 
         legal.iter().for_each(|c| c.stats_mut().availability += 1);
@@ -36,33 +35,22 @@ impl Search for ISMCTS {
     }
 
     fn value(&self, pos: &mut StrategoState) -> f32 {
-        let mut rng = rng();
+        (self.value)(pos)
+    }
 
-        let stm = pos.stm();
-        while !pos.game_over() {
-            let mov = pos.gen().iter().choose(&mut rng);
-
-            if let Some(mov) = mov {
-                pos.make(mov);
-            } else {
-                // Handle two-squares and more-squares rule
-                pos.set_game_state(GameState::Loss);
-            }
-        }
-
-        let current = f32::from(stm == pos.stm());
-        match pos.game_state() {
-            GameState::Draw => 0.0,
-            GameState::Win => -1.0 + (2.0 * current),
-            GameState::Loss => 1.0 + (-2.0 * current),
-            GameState::Ongoing => unreachable!(),
-        }
+    fn policy(&self, pos: &StrategoState, moves: &Vec<Move>) -> WeightedIndex<f32> {
+        (self.policy)(pos, moves)
     }
 }
 
-impl ISMCTS {
-    pub fn new(iterations: usize) -> Self {
-        Self { iterations }
+impl<const MULTIPLE: bool> ISMCTS<MULTIPLE> {
+    pub fn new(iterations: usize, value: Value, policy: Policy, select: Select) -> Self {
+        Self {
+            iterations,
+            value,
+            policy,
+            select,
+        }
     }
 
     pub fn go(&mut self, pos: &StrategoState) -> Move {
@@ -70,15 +58,16 @@ impl ISMCTS {
 
         for _ in 0..self.iterations {
             let mut det = pos.determination();
-            let node = Rc::clone(&root);
+            let node = Arc::clone(&root);
 
-            iteration::execute_one(&mut det, node, self);
+            iteration::execute_one::<ISMCTS<MULTIPLE>, MULTIPLE>(&mut det, node, self);
         }
 
         #[cfg(feature = "info")]
         {
             let mut children: Vec<_> = root.children().collect();
             children.sort_by_key(|c| c.stats().visits);
+
             for c in children {
                 let stats = c.stats();
 
