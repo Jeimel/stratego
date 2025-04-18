@@ -4,9 +4,12 @@ use random::UniformRandom;
 use stratego::{Move, StrategoState};
 
 pub mod mcts;
+pub mod policy;
 pub mod random;
+pub mod select;
 pub mod stratego;
 pub mod tournament;
+pub mod value;
 
 // Deployments from pov of blue
 pub const DEPLOYMENTS: [&str; 2] = ["5c2/2csdbd1/3gbfm1", "5cbf/5cdb/1gsd3m"];
@@ -14,7 +17,8 @@ pub const DEPLOYMENTS: [&str; 2] = ["5c2/2csdbd1/3gbfm1", "5cbf/5cdb/1gsd3m"];
 pub enum Algorithm {
     MCTS(MCTS),
     PIMC(PIMC),
-    ISMCTS(ISMCTS),
+    SOISMCTS(ISMCTS<false>),
+    MOISMCTS(ISMCTS<true>),
     Random(UniformRandom),
 }
 
@@ -23,7 +27,8 @@ impl Algorithm {
         match self {
             Algorithm::MCTS(a) => a.go(pos),
             Algorithm::PIMC(a) => a.go(pos),
-            Algorithm::ISMCTS(a) => a.go(pos),
+            Algorithm::SOISMCTS(a) => a.go(pos),
+            Algorithm::MOISMCTS(a) => a.go(pos),
             Algorithm::Random(a) => a.go(pos),
         }
     }
@@ -32,13 +37,14 @@ impl Algorithm {
         match self {
             Algorithm::MCTS(_) => random_deployment(),
             Algorithm::PIMC(_) => random_deployment(),
-            Algorithm::ISMCTS(_) => random_deployment(),
+            Algorithm::SOISMCTS(_) => random_deployment(),
+            Algorithm::MOISMCTS(_) => random_deployment(),
             Algorithm::Random(a) => a.deployment(),
         }
     }
 }
 
-fn random_deployment() -> String {
+pub fn random_deployment() -> String {
     let mut rng = rng();
 
     DEPLOYMENTS.choose(&mut rng).unwrap().to_string()

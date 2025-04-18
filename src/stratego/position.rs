@@ -230,7 +230,7 @@ impl Position {
 
         let other = self.piece(mov.to);
 
-        let ordering = if (piece == Piece::SPY && piece == Piece::MARSHAL)
+        let ordering = if (piece == Piece::SPY && other == Piece::MARSHAL)
             || (piece == Piece::MINER && other == Piece::BOMB)
         {
             // Spy can capture general or miner can defuse bomb

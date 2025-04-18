@@ -1,17 +1,30 @@
 use super::{node::Node, Search};
-use crate::stratego::{GameState, StrategoState};
-use rand::seq::IteratorRandom;
-use std::rc::Rc;
+use crate::{
+    stratego::{GameState, StrategoState},
+    value::piece_value,
+};
+use rand::distr::Distribution;
+use std::sync::Arc;
 
-pub fn execute_one<S: Search>(pos: &mut StrategoState, mut node: Rc<Node>, search: &S) {
+pub fn execute_one<S: Search, const MULTIPLE: bool>(
+    pos: &mut StrategoState,
+    mut node: Arc<Node>,
+    search: &S,
+) {
     let mut rng = rand::rng();
 
     let mut moves: Vec<_>;
     let mut untried;
     loop {
-        moves = pos.gen().iter().collect();
-        untried = node.untried(&moves);
+        moves = (if MULTIPLE {
+            pos.anonymize(pos.stm() as usize ^ 1).determination().gen()
+        } else {
+            pos.gen()
+        })
+        .iter()
+        .collect();
 
+        untried = node.untried(&moves);
         if moves.is_empty() || !untried.is_empty() {
             break;
         }
@@ -20,10 +33,11 @@ pub fn execute_one<S: Search>(pos: &mut StrategoState, mut node: Rc<Node>, searc
         pos.make(node.mov().unwrap());
     }
 
-    if let Some(mov) = untried.into_iter().choose(&mut rng) {
-        pos.make(mov);
+    if untried.len() != 0 {
+        let i = search.policy(&pos, &untried).sample(&mut rng);
+        pos.make(untried[i]);
 
-        node = node.add(mov, pos.game_state());
+        node = node.add(untried[i], pos.game_state(), piece_value(pos));
     }
 
     let mut reward = utility(pos, search);

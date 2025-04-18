@@ -1,19 +1,34 @@
-use super::{node::NodeStats, MCTS, UCT};
-use crate::stratego::{Move, StrategoState};
+use super::{node::NodeStats, MCTS};
+use crate::{
+    policy::Policy,
+    select::Select,
+    stratego::{Move, StrategoState},
+    value::Value,
+};
 use std::collections::HashMap;
 
 pub struct PIMC {
     determinizations: usize,
     iterations: usize,
+    value: Value,
+    policy: Policy,
+    select: Select,
 }
 
-impl UCT for PIMC {}
-
 impl PIMC {
-    pub fn new(determinizations: usize, iterations: usize) -> Self {
+    pub fn new(
+        determinizations: usize,
+        iterations: usize,
+        value: Value,
+        policy: Policy,
+        select: Select,
+    ) -> Self {
         Self {
             determinizations,
             iterations,
+            value,
+            policy,
+            select,
         }
     }
 
@@ -21,14 +36,16 @@ impl PIMC {
         let mut root: HashMap<Move, NodeStats> = HashMap::new();
 
         for _ in 0..self.determinizations {
-            let mut search = MCTS::new(self.iterations);
+            let mut search = MCTS::new(self.iterations, self.value, self.policy, self.select);
             let mut det = pos.determination();
 
             search.run(&mut det);
 
             search.root().children().for_each(|c| {
                 let stats = c.stats();
-                let entry = root.entry(c.mov().unwrap()).or_insert(NodeStats::default());
+                let entry = root
+                    .entry(c.mov().unwrap())
+                    .or_insert(NodeStats::new(0, 0.0));
 
                 entry.visits += stats.visits;
                 entry.reward += stats.reward;

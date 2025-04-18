@@ -1,31 +1,20 @@
 use crate::stratego::{GameState, Move};
-use std::{
-    cell::{Ref, RefCell, RefMut},
-    rc::{Rc, Weak},
-};
+use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard, Weak};
 
 pub struct NodeStats {
     pub visits: usize,
     pub availability: usize,
     pub reward: f32,
-}
-
-impl Default for NodeStats {
-    fn default() -> Self {
-        Self {
-            visits: 0,
-            availability: 0,
-            reward: 0.0,
-        }
-    }
+    pub value: f32,
 }
 
 impl NodeStats {
-    pub fn new() -> Self {
+    pub fn new(availability: usize, value: f32) -> Self {
         Self {
             visits: 0,
-            availability: 1,
+            availability,
             reward: 0.0,
+            value,
         }
     }
 }
@@ -33,35 +22,35 @@ impl NodeStats {
 pub struct Node {
     mov: Option<Move>,
     parent: Option<Weak<Node>>,
-    state: RefCell<GameState>,
-    children: RefCell<Vec<Rc<Node>>>,
-    stats: RefCell<NodeStats>,
+    state: RwLock<GameState>,
+    children: RwLock<Vec<Arc<Node>>>,
+    stats: RwLock<NodeStats>,
 }
 
 impl Node {
-    pub fn new() -> Rc<Self> {
-        Rc::new(Self {
+    pub fn new() -> Arc<Self> {
+        Arc::new(Self {
             mov: None,
             parent: None,
-            state: RefCell::new(GameState::default()),
+            state: RwLock::new(GameState::default()),
             children: Default::default(),
-            stats: RefCell::new(NodeStats::default()),
+            stats: RwLock::new(NodeStats::new(0, 0.0)),
         })
     }
 
-    pub fn add(self: Rc<Self>, mov: Move, state: GameState) -> Rc<Node> {
-        let mut children = self.children.borrow_mut();
-        let parent = Rc::downgrade(&self);
+    pub fn add(self: Arc<Self>, mov: Move, state: GameState, value: f32) -> Arc<Node> {
+        let mut children = self.children.write().unwrap();
+        let parent = Arc::downgrade(&self);
 
-        let child = Rc::new(Node {
+        let child = Arc::new(Node {
             mov: Some(mov),
-            parent: Some(parent.clone()),
+            parent: Some(parent),
             children: Default::default(),
-            state: RefCell::new(state),
-            stats: RefCell::new(NodeStats::new()),
+            state: RwLock::new(state),
+            stats: RwLock::new(NodeStats::new(1, value)),
         });
 
-        children.push(Rc::clone(&child));
+        children.push(Arc::clone(&child));
         child
     }
 
@@ -74,7 +63,7 @@ impl Node {
     }
 
     pub fn update(&self, reward: f32) {
-        let mut stats = self.stats.borrow_mut();
+        let mut stats = self.stats.write().unwrap();
 
         stats.visits += 1;
         stats.reward += reward;
@@ -84,35 +73,35 @@ impl Node {
         self.mov
     }
 
-    pub fn parent(&self) -> Option<Rc<Node>> {
+    pub fn parent(&self) -> Option<Arc<Node>> {
         self.parent.as_ref().and_then(Weak::upgrade)
     }
 
-    pub fn children(&self) -> impl Iterator<Item = Rc<Node>> {
-        self.children.borrow().clone().into_iter()
+    pub fn children(&self) -> impl Iterator<Item = Arc<Node>> {
+        self.children.read().unwrap().clone().into_iter()
     }
 
     pub fn is_empty(&self) -> bool {
-        self.children.borrow().is_empty()
+        self.children.read().unwrap().is_empty()
     }
 
     pub fn game_state(&self) -> GameState {
-        *self.state.borrow()
+        *self.state.read().unwrap()
     }
 
-    pub fn stats(&self) -> Ref<'_, NodeStats> {
-        self.stats.borrow()
+    pub fn stats(&self) -> RwLockReadGuard<'_, NodeStats> {
+        self.stats.read().unwrap()
     }
 
-    pub fn stats_mut(&self) -> RefMut<'_, NodeStats> {
-        self.stats.borrow_mut()
+    pub fn stats_mut(&self) -> RwLockWriteGuard<'_, NodeStats> {
+        self.stats.write().unwrap()
     }
 
     pub fn parent_visits(&self) -> usize {
-        self.parent().unwrap().stats.borrow().visits
+        self.parent().unwrap().stats.read().unwrap().visits
     }
 
-    pub fn max_visits(&self) -> Option<Rc<Node>> {
+    pub fn max_visits(&self) -> Option<Arc<Node>> {
         self.children().max_by_key(|c| c.stats().visits)
     }
 }
