@@ -83,10 +83,9 @@ pub fn piece_value(pos: &mut StrategoState) -> f32 {
     const VALUES: [isize; 8] = [0, 200, 30, 25, 200, 400, 0, 20];
 
     let board = pos.board();
-    let stm = pos.stm() as usize;
 
     let mut sum = 0;
-    for side in [stm ^ 1, stm] {
+    for side in (0..=1).rev() {
         let pieces = board.get(side);
 
         for piece in Piece::FLAG..=Piece::BOMB {
