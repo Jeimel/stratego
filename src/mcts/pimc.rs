@@ -1,5 +1,6 @@
 use super::{node::NodeStats, MCTS};
 use crate::{
+    deployment::Deployment,
     policy::Policy,
     select::Select,
     stratego::{Move, StrategoState},
@@ -13,6 +14,7 @@ pub struct PIMC {
     value: Value,
     policy: Policy,
     select: Select,
+    deployment: Deployment,
 }
 
 impl PIMC {
@@ -22,6 +24,7 @@ impl PIMC {
         value: Value,
         policy: Policy,
         select: Select,
+        deployment: Deployment,
     ) -> Self {
         Self {
             determinizations,
@@ -29,6 +32,7 @@ impl PIMC {
             value,
             policy,
             select,
+            deployment,
         }
     }
 
@@ -36,7 +40,13 @@ impl PIMC {
         let mut root: HashMap<Move, NodeStats> = HashMap::new();
 
         for _ in 0..self.determinizations {
-            let mut search = MCTS::new(self.iterations, self.value, self.policy, self.select);
+            let mut search = MCTS::new(
+                self.iterations,
+                self.value,
+                self.policy,
+                self.select,
+                self.deployment,
+            );
             let mut det = pos.determination();
 
             search.run(&mut det);
@@ -69,5 +79,9 @@ impl PIMC {
         }
 
         *children.iter().max_by_key(|c| c.1.visits).unwrap().0
+    }
+
+    pub fn deployment(&self) -> String {
+        (self.deployment)()
     }
 }

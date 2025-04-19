@@ -1,5 +1,6 @@
 use super::{iteration, node::Node, Search};
 use crate::{
+    deployment::Deployment,
     policy::Policy,
     select::Select,
     stratego::{Move, StrategoState},
@@ -14,6 +15,7 @@ pub struct ISMCTS<const MULTIPLE: bool> {
     value: Value,
     policy: Policy,
     select: Select,
+    deployment: Deployment,
 }
 
 impl<const MULTIPLE: bool> Search for ISMCTS<MULTIPLE> {
@@ -41,15 +43,26 @@ impl<const MULTIPLE: bool> Search for ISMCTS<MULTIPLE> {
     fn policy(&self, pos: &StrategoState, moves: &Vec<Move>) -> WeightedIndex<f32> {
         (self.policy)(pos, moves)
     }
+
+    fn deployment(&self) -> String {
+        (self.deployment)()
+    }
 }
 
 impl<const MULTIPLE: bool> ISMCTS<MULTIPLE> {
-    pub fn new(iterations: usize, value: Value, policy: Policy, select: Select) -> Self {
+    pub fn new(
+        iterations: usize,
+        value: Value,
+        policy: Policy,
+        select: Select,
+        deployment: Deployment,
+    ) -> Self {
         Self {
             iterations,
             value,
             policy,
             select,
+            deployment,
         }
     }
 

@@ -3,6 +3,7 @@ use rand::distr::weighted::WeightedIndex;
 
 use super::{iteration, node::Node, Search};
 use crate::{
+    deployment::Deployment,
     policy::Policy,
     select::Select,
     stratego::{Move, StrategoState},
@@ -17,6 +18,7 @@ pub struct MCTS {
     value: Value,
     policy: Policy,
     select: Select,
+    deployment: Deployment,
 }
 
 impl Search for MCTS {
@@ -42,10 +44,20 @@ impl Search for MCTS {
     fn policy(&self, pos: &StrategoState, moves: &Vec<Move>) -> WeightedIndex<f32> {
         (self.policy)(pos, moves)
     }
+
+    fn deployment(&self) -> String {
+        (self.deployment)()
+    }
 }
 
 impl MCTS {
-    pub fn new(iterations: usize, value: Value, policy: Policy, select: Select) -> Self {
+    pub fn new(
+        iterations: usize,
+        value: Value,
+        policy: Policy,
+        select: Select,
+        deployment: Deployment,
+    ) -> Self {
         Self {
             root: Node::new(),
             pos: None,
@@ -53,6 +65,7 @@ impl MCTS {
             value,
             policy,
             select,
+            deployment,
         }
     }
 

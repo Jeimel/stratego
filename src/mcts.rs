@@ -19,4 +19,6 @@ pub trait Search {
     fn value(&self, pos: &mut StrategoState) -> f32;
 
     fn policy(&self, pos: &StrategoState, moves: &Vec<Move>) -> WeightedIndex<f32>;
+
+    fn deployment(&self) -> String;
 }
