@@ -5,7 +5,7 @@ use std::collections::HashSet;
 // Deployments from pov of blue
 pub type Deployment = fn() -> String;
 
-pub fn uniform() -> String {
+pub fn random() -> String {
     const PIECES: [char; 10] = [
         Position::SYMBOLS[0],
         Position::SYMBOLS[1],

@@ -255,7 +255,7 @@ impl Position {
 
         // Current player has captured the flag
         if other == Piece::FLAG {
-            self.state = GameState::Win;
+            self.state = GameState::Loss;
         }
         // If all bitboards except the immovable pieces are empty the game is drawn
         else if ((self.bb[0] | self.bb[1]) ^ immovable) == 0 {
@@ -263,11 +263,11 @@ impl Position {
         }
         // If the current side has no pieces the other wins
         else if (self.bb[stm] & !immovable) == 0 {
-            self.state = GameState::Loss;
+            self.state = GameState::Win;
         }
         // If other side has no pieces the current side wins
         else if (self.bb[stm ^ 1] & !immovable) == 0 {
-            self.state = GameState::Win;
+            self.state = GameState::Loss;
         }
     }
 

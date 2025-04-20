@@ -112,7 +112,7 @@ impl Tournament {
             moves.push(format!("{}", mov));
 
             #[cfg(feature = "info")]
-            println!("info move {} stm {} pos {}", mov, stm, pos_str);
+            println!("info move {} stm {} moves {:?}", mov, stm, moves);
 
             let mov = gen.iter().find(|m| format!("{}", m) == format!("{}", mov));
             if mov.is_none() {
@@ -129,9 +129,9 @@ impl Tournament {
 
         let mut result = [0.0, 0.0];
         match pos.game_state() {
-            GameState::Win => result[stm ^ 1] = 1.0,
+            GameState::Win => result[stm] = 1.0,
             GameState::Draw => result = [0.5, 0.5],
-            GameState::Loss => result[stm] = 1.0,
+            GameState::Loss => result[stm ^ 1] = 1.0,
             GameState::Ongoing => unreachable!(),
         };
 

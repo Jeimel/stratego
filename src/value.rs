@@ -1,11 +1,10 @@
-use std::cmp::Ordering;
-
 use crate::stratego::{Flag, GameState, Piece, StrategoState};
 use rand::{
     distr::{weighted::WeightedIndex, Distribution},
     rng,
     seq::IteratorRandom,
 };
+use std::{cmp::Ordering, usize};
 
 pub type Value = fn(&mut StrategoState) -> f32;
 
@@ -80,21 +79,29 @@ pub fn simulation_ordered(pos: &mut StrategoState) -> f32 {
 }
 
 pub fn piece_value(pos: &mut StrategoState) -> f32 {
-    const VALUES: [isize; 8] = [0, 200, 30, 25, 200, 400, 0, 20];
+    const VALUES: [isize; 7] = [200, 30, 25, 200, 400, 0, 20];
 
     let board = pos.board();
+    let stm = pos.stm() as usize;
 
     let mut sum = 0;
-    for side in (0..=1).rev() {
+    for side in [stm, stm ^ 1] {
         let pieces = board.get(side);
 
-        for piece in Piece::FLAG..=Piece::BOMB {
+        for piece in Piece::SPY..=Piece::BOMB {
             let mask = board.get(piece) & pieces;
-            sum += VALUES[piece - 2] * mask.count_ones() as isize;
+            sum += VALUES[piece - 3] * mask.count_ones() as isize;
         }
 
         sum = -sum;
     }
 
     sum as f32 / 950.0
+}
+
+pub fn network(pos: &mut StrategoState) -> f32 {
+    let _red = pos.features::<false>(0);
+    let _blue = pos.features::<true>(1);
+
+    0.0
 }

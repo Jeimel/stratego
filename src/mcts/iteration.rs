@@ -40,7 +40,7 @@ pub fn execute_one<S: Search, const MULTIPLE: bool>(
         node = node.add(untried[i], pos.game_state(), piece_value(pos));
     }
 
-    let mut reward = utility(pos, search);
+    let mut reward = -utility(pos, search);
 
     let mut previous = node;
     loop {
