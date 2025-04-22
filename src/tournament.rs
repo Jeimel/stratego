@@ -14,13 +14,15 @@ mod schedule;
 pub struct Tournament {
     engines: Vec<Engine>,
     results: Vec<Ranking>,
+    limit: usize,
 }
 
 impl Tournament {
-    pub fn new() -> Self {
+    pub fn new(limit: usize) -> Self {
         Self {
             engines: Vec::new(),
             results: Vec::new(),
+            limit,
         }
     }
 
@@ -97,7 +99,7 @@ impl Tournament {
                 break;
             }
 
-            if moves.len() > 150 {
+            if moves.len() > self.limit {
                 pos.set_game_state(GameState::Draw);
                 break;
             }
