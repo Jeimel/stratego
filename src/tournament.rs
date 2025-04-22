@@ -97,6 +97,11 @@ impl Tournament {
                 break;
             }
 
+            if moves.len() > 150 {
+                pos.set_game_state(GameState::Draw);
+                break;
+            }
+
             let player_pos = if self.engines[indices[stm]].cheating() {
                 pos.clone()
             } else {
@@ -106,10 +111,13 @@ impl Tournament {
             let mov = self.engines[indices[stm]].go(player_pos);
             moves.push(format!("{}", mov));
 
-            // println!("info move {} stm {} pos {}", mov, stm, pos_str);
+            #[cfg(feature = "info")]
+            println!("info move {} stm {} moves {:?}", mov, stm, moves);
 
             let mov = gen.iter().find(|m| format!("{}", m) == format!("{}", mov));
             if mov.is_none() {
+                println!("{}", pos);
+                println!("{:?}", moves);
                 unreachable!();
             }
 
@@ -121,9 +129,9 @@ impl Tournament {
 
         let mut result = [0.0, 0.0];
         match pos.game_state() {
-            GameState::Win => result[stm ^ 1] = 1.0,
+            GameState::Win => result[stm] = 1.0,
             GameState::Draw => result = [0.5, 0.5],
-            GameState::Loss => result[stm] = 1.0,
+            GameState::Loss => result[stm ^ 1] = 1.0,
             GameState::Ongoing => unreachable!(),
         };
 

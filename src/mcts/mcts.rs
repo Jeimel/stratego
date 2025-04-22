@@ -1,21 +1,71 @@
-use super::{iteration, node::Node, UCB};
-use crate::stratego::{Move, StrategoState};
-use std::rc::Rc;
+use ordered_float::OrderedFloat;
+use rand::distr::weighted::WeightedIndex;
+
+use super::{iteration, node::Node, Search};
+use crate::{
+    deployment::Deployment,
+    policy::Policy,
+    select::Select,
+    stratego::{Move, StrategoState},
+    value::Value,
+};
+use std::sync::Arc;
 
 pub struct MCTS {
-    root: Rc<Node>,
+    root: Arc<Node>,
     pos: Option<StrategoState>,
     iterations: usize,
+    value: Value,
+    policy: Policy,
+    select: Select,
+    deployment: Deployment,
 }
 
-impl UCB for MCTS {}
+impl Search for MCTS {
+    fn select(&self, node: &Node, moves: &[Move]) -> Option<Arc<Node>> {
+        let children = node.children();
+
+        let legal: Vec<_> = children
+            .filter(|c| moves.iter().any(|m| c.mov().unwrap() == *m))
+            .collect();
+
+        let choice = legal
+            .iter()
+            .max_by_key(|c| OrderedFloat::from((self.select)(c)))
+            .cloned();
+
+        choice
+    }
+
+    fn value(&self, pos: &mut StrategoState) -> f32 {
+        (self.value)(pos)
+    }
+
+    fn policy(&self, pos: &StrategoState, moves: &Vec<Move>) -> WeightedIndex<f32> {
+        (self.policy)(pos, moves)
+    }
+
+    fn deployment(&self) -> String {
+        (self.deployment)()
+    }
+}
 
 impl MCTS {
-    pub fn new(iterations: usize) -> Self {
+    pub fn new(
+        iterations: usize,
+        value: Value,
+        policy: Policy,
+        select: Select,
+        deployment: Deployment,
+    ) -> Self {
         Self {
             root: Node::new(),
             pos: None,
             iterations,
+            value,
+            policy,
+            select,
+            deployment,
         }
     }
 
@@ -24,28 +74,32 @@ impl MCTS {
         self.set_root(pos);
         self.run(pos);
 
-        let mut children: Vec<_> = self.root.children().collect();
+        #[cfg(feature = "info")]
+        {
+            let mut children: Vec<_> = self.root.children().collect();
+            children.sort_by_key(|c| c.stats().visits);
 
-        children.sort_by_key(|c| c.visits());
-        for c in children {
-            println!(
-                "info move {} visits {} reward {} availability {}",
-                c.mov.unwrap(),
-                c.visits(),
-                c.reward(),
-                c.availability(),
-            );
+            for c in children {
+                let stats = c.stats();
+
+                println!(
+                    "info move {} visits {} reward {}",
+                    c.mov().unwrap(),
+                    stats.visits,
+                    stats.reward,
+                );
+            }
         }
 
-        self.root.max_visits().unwrap().mov.unwrap()
+        self.root.max_visits().unwrap().mov().unwrap()
     }
 
     pub fn run(&mut self, pos: &StrategoState) {
         for _ in 0..self.iterations {
             let mut pos = pos.clone();
-            let node = Rc::clone(&self.root);
+            let node = Arc::clone(&self.root);
 
-            iteration::execute_one(&mut pos, node, self);
+            iteration::execute_one::<MCTS, false>(&mut pos, node, self);
         }
     }
 
@@ -78,11 +132,11 @@ impl MCTS {
 
     fn recursive_find(
         &self,
-        node: Rc<Node>,
+        node: Arc<Node>,
         old: &StrategoState,
         new: &StrategoState,
         depth: usize,
-    ) -> Option<Rc<Node>> {
+    ) -> Option<Arc<Node>> {
         if old.board() == new.board() {
             return Some(node);
         }
@@ -93,7 +147,7 @@ impl MCTS {
 
         for child in node.children() {
             let mut child_board = old.clone();
-            child_board.make(child.mov.unwrap());
+            child_board.make(child.mov().unwrap());
 
             let found = self.recursive_find(child, &mut child_board, new, depth - 1);
 
