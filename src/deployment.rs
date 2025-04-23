@@ -1,22 +1,45 @@
 use crate::stratego::Position;
+use heuristic::heuristic;
 use rand::{rng, seq::IndexedRandom, Rng};
 use std::collections::HashSet;
 
-// Deployments from pov of blue
-pub type Deployment = fn() -> String;
+pub mod heuristic;
+mod network;
 
-pub fn random() -> String {
+pub use heuristic::evaluate;
+pub use network::Network;
+
+// Deployments from pov of blue
+pub enum Deployment {
+    Random,
+    Heuristic,
+    Dataset,
+    Network(Network),
+}
+
+impl Deployment {
+    pub fn get(&self) -> String {
+        match self {
+            Deployment::Random => random(),
+            Deployment::Heuristic => heuristic(),
+            Deployment::Dataset => dataset(),
+            Deployment::Network(net) => net.get(),
+        }
+    }
+}
+
+fn random() -> String {
     const PIECES: [char; 10] = [
-        Position::SYMBOLS[0],
-        Position::SYMBOLS[1],
-        Position::SYMBOLS[2],
-        Position::SYMBOLS[2],
-        Position::SYMBOLS[3],
-        Position::SYMBOLS[3],
-        Position::SYMBOLS[4],
-        Position::SYMBOLS[5],
-        Position::SYMBOLS[7],
-        Position::SYMBOLS[7],
+        Position::SYMBOLS[8],
+        Position::SYMBOLS[9],
+        Position::SYMBOLS[10],
+        Position::SYMBOLS[10],
+        Position::SYMBOLS[11],
+        Position::SYMBOLS[11],
+        Position::SYMBOLS[12],
+        Position::SYMBOLS[13],
+        Position::SYMBOLS[15],
+        Position::SYMBOLS[15],
     ];
 
     let mut deployment = [' '; 24];
@@ -63,9 +86,32 @@ pub fn random() -> String {
     chars.as_str().to_string()
 }
 
-pub fn dataset() -> String {
-    const DEPLOYMENTS: [&str; 2] = ["5c2/2csdbd1/3gbfm1", "5cbf/5cdb/1gsd3m"];
+fn dataset() -> String {
+    const DEPLOYMENTS: [&str; 12] = [
+        "1c6/2d3mc/d1sgbfb1",
+        "3bfbc1/1cd1m3/2sgd3",
+        "fb1c4/bg4c1/1dsgd3",
+        "1c6/s2cm3/g1d1dfbb",
+        "7c/d1fbg3/cbmd1s2",
+        "4mfbc/c4bds/1d2g3",
+        "7c/fb2d1c1/mgsbd3",
+        "3c3c/1g2bfm1/d1s1db2",
+        "5c1/2csdbd1/3gbfm1",
+        "7c/c3bfm1/1dsg1bd1",
+        "5cbf/5cdb/1gsd3m",
+        "1mfbc3/1cbd4/2sg1d2",
+    ];
 
     let mut rng = rng();
-    DEPLOYMENTS.choose(&mut rng).unwrap().to_string()
+    let mut deployment = DEPLOYMENTS.choose(&mut rng).unwrap().to_string();
+
+    if rng.random() {
+        deployment = deployment
+            .split('/')
+            .map(|s| s.chars().rev().collect::<String>())
+            .collect::<Vec<_>>()
+            .join("/");
+    }
+
+    deployment
 }
