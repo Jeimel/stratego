@@ -2,7 +2,19 @@ use crate::stratego::{Flag, Move, Piece, StrategoState};
 use rand::distr::weighted::WeightedIndex;
 use std::cmp::Ordering;
 
-pub type Policy = fn(&StrategoState, &Vec<Move>) -> WeightedIndex<f32>;
+pub enum Policy {
+    Uniform,
+    Ordered,
+}
+
+impl Policy {
+    pub fn get(&self, pos: &StrategoState, moves: &Vec<Move>) -> WeightedIndex<f32> {
+        match self {
+            Policy::Uniform => uniform(pos, moves),
+            Policy::Ordered => ordered(pos, moves),
+        }
+    }
+}
 
 pub fn uniform(_: &StrategoState, moves: &Vec<Move>) -> WeightedIndex<f32> {
     let weights = vec![1f32 / moves.len() as f32; moves.len()];
