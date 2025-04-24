@@ -1,8 +1,12 @@
-use crate::stratego::{Flag, GameState, Piece, StrategoState};
+use crate::{
+    stratego::{Flag, GameState, Piece, StrategoState},
+    value::heuristic::heuristic,
+};
 use rand::{
     distr::{weighted::WeightedIndex, Distribution},
     rng,
     seq::IteratorRandom,
+    Rng,
 };
 use std::{cmp::Ordering, usize};
 
@@ -83,5 +87,33 @@ pub fn simulation_ordered(pos: &mut StrategoState) -> f32 {
         GameState::Win => -1.0 + (2.0 * current),
         GameState::Loss => 1.0 + (-2.0 * current),
         GameState::Ongoing => unreachable!(),
+    }
+}
+
+pub fn simulation_cutoff(pos: &mut StrategoState, c: f32) -> f32 {
+    let mut rng = rng();
+
+    let stm = pos.stm();
+    while !pos.game_over() {
+        if rng.random::<f32>() < c {
+            break;
+        }
+
+        let mov = pos.gen().iter().choose(&mut rng);
+
+        if let Some(mov) = mov {
+            pos.make(mov);
+        } else {
+            // Handle two-squares and more-squares rule
+            pos.set_game_state(GameState::Loss);
+        }
+    }
+
+    let current = f32::from(stm == pos.stm());
+    match pos.game_state() {
+        GameState::Draw => 0.0,
+        GameState::Win => -1.0 + (2.0 * current),
+        GameState::Loss => 1.0 + (-2.0 * current),
+        GameState::Ongoing => heuristic(pos),
     }
 }
