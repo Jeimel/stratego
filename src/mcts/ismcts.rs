@@ -28,7 +28,7 @@ impl<const MULTIPLE: bool> Search for ISMCTS<MULTIPLE> {
 
         let choice = legal
             .iter()
-            .max_by_key(|c| OrderedFloat::from((self.select)(c)))
+            .max_by_key(|c| OrderedFloat::from(self.select.get(c)))
             .cloned();
 
         legal.iter().for_each(|c| c.stats_mut().availability += 1);
@@ -37,15 +37,15 @@ impl<const MULTIPLE: bool> Search for ISMCTS<MULTIPLE> {
     }
 
     fn value(&self, pos: &mut StrategoState) -> f32 {
-        (self.value)(pos)
+        self.value.get(pos)
     }
 
     fn policy(&self, pos: &StrategoState, moves: &Vec<Move>) -> WeightedIndex<f32> {
-        (self.policy)(pos, moves)
+        self.policy.get(pos, moves)
     }
 
     fn deployment(&self) -> String {
-        (self.deployment)()
+        self.deployment.get()
     }
 }
 
@@ -85,11 +85,12 @@ impl<const MULTIPLE: bool> ISMCTS<MULTIPLE> {
                 let stats = c.stats();
 
                 println!(
-                    "info move {} visits {} reward {} availability {}",
+                    "info move {} visits {} reward {} availability {} value {}",
                     c.mov().unwrap(),
                     stats.visits,
                     stats.reward,
                     stats.availability,
+                    stats.value,
                 );
             }
         }

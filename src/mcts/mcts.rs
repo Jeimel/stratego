@@ -1,6 +1,3 @@
-use ordered_float::OrderedFloat;
-use rand::distr::weighted::WeightedIndex;
-
 use super::{iteration, node::Node, Search};
 use crate::{
     deployment::Deployment,
@@ -9,6 +6,8 @@ use crate::{
     stratego::{Move, StrategoState},
     value::Value,
 };
+use ordered_float::OrderedFloat;
+use rand::distr::weighted::WeightedIndex;
 use std::sync::Arc;
 
 pub struct MCTS {
@@ -31,22 +30,22 @@ impl Search for MCTS {
 
         let choice = legal
             .iter()
-            .max_by_key(|c| OrderedFloat::from((self.select)(c)))
+            .max_by_key(|c| OrderedFloat::from(self.select.get(c)))
             .cloned();
 
         choice
     }
 
     fn value(&self, pos: &mut StrategoState) -> f32 {
-        (self.value)(pos)
+        self.value.get(pos)
     }
 
     fn policy(&self, pos: &StrategoState, moves: &Vec<Move>) -> WeightedIndex<f32> {
-        (self.policy)(pos, moves)
+        self.policy.get(pos, moves)
     }
 
     fn deployment(&self) -> String {
-        (self.deployment)()
+        self.deployment.get()
     }
 }
 
@@ -70,7 +69,6 @@ impl MCTS {
     }
 
     pub fn go(&mut self, pos: &StrategoState) -> Move {
-        self.set_pos(None);
         self.set_root(pos);
         self.run(pos);
 
@@ -112,50 +110,7 @@ impl MCTS {
     }
 
     pub fn set_root(&mut self, new: &StrategoState) {
-        let old_root = self.root.clone();
-
-        self.root = if self.pos.is_some() {
-            println!("info node searching for subtree");
-            let new = self.recursive_find(old_root, &self.pos.clone().unwrap(), new, 2);
-
-            if new.is_some() {
-                println!("info node found subtree")
-            }
-
-            new.unwrap_or(Node::new())
-        } else {
-            Node::new()
-        };
-
+        self.root = Node::new();
         self.pos = Some(new.clone());
-    }
-
-    fn recursive_find(
-        &self,
-        node: Arc<Node>,
-        old: &StrategoState,
-        new: &StrategoState,
-        depth: usize,
-    ) -> Option<Arc<Node>> {
-        if old.board() == new.board() {
-            return Some(node);
-        }
-
-        if depth == 0 || node.is_empty() {
-            return None;
-        }
-
-        for child in node.children() {
-            let mut child_board = old.clone();
-            child_board.make(child.mov().unwrap());
-
-            let found = self.recursive_find(child, &mut child_board, new, depth - 1);
-
-            if !found.is_none() {
-                return found;
-            }
-        }
-
-        None
     }
 }

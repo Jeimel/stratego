@@ -1,7 +1,7 @@
 use super::{node::Node, Search};
 use crate::{
     stratego::{GameState, StrategoState},
-    value::piece_value,
+    value::Value,
 };
 use rand::distr::Distribution;
 use std::sync::Arc;
@@ -37,7 +37,7 @@ pub fn execute_one<S: Search, const MULTIPLE: bool>(
         let i = search.policy(&pos, &untried).sample(&mut rng);
         pos.make(untried[i]);
 
-        node = node.add(untried[i], pos.game_state(), piece_value(pos));
+        node = node.add(untried[i], pos.game_state(), heuristic(pos));
     }
 
     let mut reward = -utility(pos, search);
@@ -59,6 +59,15 @@ pub fn execute_one<S: Search, const MULTIPLE: bool>(
 fn utility<S: Search>(pos: &mut StrategoState, search: &S) -> f32 {
     match pos.game_state() {
         GameState::Ongoing => search.value(pos),
+        GameState::Win => 1.0,
+        GameState::Draw => 0.0,
+        GameState::Loss => -1.0,
+    }
+}
+
+fn heuristic(pos: &mut StrategoState) -> f32 {
+    match pos.game_state() {
+        GameState::Ongoing => Value::Heuristic.get(pos),
         GameState::Win => 1.0,
         GameState::Draw => 0.0,
         GameState::Loss => -1.0,

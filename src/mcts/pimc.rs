@@ -1,4 +1,4 @@
-use super::{node::NodeStats, MCTS};
+use super::{iteration, node::NodeStats, Node, Search};
 use crate::{
     deployment::Deployment,
     policy::Policy,
@@ -6,7 +6,9 @@ use crate::{
     stratego::{Move, StrategoState},
     value::Value,
 };
-use std::collections::HashMap;
+use ordered_float::OrderedFloat;
+use rand::distr::weighted::WeightedIndex;
+use std::{collections::HashMap, sync::Arc};
 
 pub struct PIMC {
     determinizations: usize,
@@ -15,6 +17,35 @@ pub struct PIMC {
     policy: Policy,
     select: Select,
     deployment: Deployment,
+}
+
+impl Search for PIMC {
+    fn select(&self, node: &Node, moves: &[Move]) -> Option<Arc<Node>> {
+        let children = node.children();
+
+        let legal: Vec<_> = children
+            .filter(|c| moves.iter().any(|m| c.mov().unwrap() == *m))
+            .collect();
+
+        let choice = legal
+            .iter()
+            .max_by_key(|c| OrderedFloat::from(self.select.get(c)))
+            .cloned();
+
+        choice
+    }
+
+    fn value(&self, pos: &mut StrategoState) -> f32 {
+        self.value.get(pos)
+    }
+
+    fn policy(&self, pos: &StrategoState, moves: &Vec<Move>) -> WeightedIndex<f32> {
+        self.policy.get(pos, moves)
+    }
+
+    fn deployment(&self) -> String {
+        self.deployment.get()
+    }
 }
 
 impl PIMC {
@@ -40,18 +71,17 @@ impl PIMC {
         let mut root: HashMap<Move, NodeStats> = HashMap::new();
 
         for _ in 0..self.determinizations {
-            let mut search = MCTS::new(
-                self.iterations,
-                self.value,
-                self.policy,
-                self.select,
-                self.deployment,
-            );
-            let mut det = pos.determination();
+            let node = Node::new();
+            let det = pos.determination();
 
-            search.run(&mut det);
+            for _ in 0..self.iterations {
+                let mut pos = det.clone();
+                let node = Arc::clone(&node);
 
-            search.root().children().for_each(|c| {
+                iteration::execute_one::<PIMC, false>(&mut pos, node, self);
+            }
+
+            node.children().for_each(|c| {
                 let stats = c.stats();
                 let entry = root
                     .entry(c.mov().unwrap())
@@ -82,6 +112,6 @@ impl PIMC {
     }
 
     pub fn deployment(&self) -> String {
-        (self.deployment)()
+        self.deployment.get()
     }
 }

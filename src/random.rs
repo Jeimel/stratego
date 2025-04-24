@@ -24,6 +24,6 @@ impl UniformRandom {
     }
 
     pub fn deployment(&mut self) -> String {
-        (self.deployment)()
+        self.deployment.get()
     }
 }
