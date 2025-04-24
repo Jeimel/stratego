@@ -1,23 +1,18 @@
 #![allow(dead_code)]
 
-use bincode::config;
-use buffer::{ReplayBuffer, SearchData};
-use std::{
-    fs::{File, OpenOptions},
-    io::BufReader,
-    sync::{atomic::AtomicBool, Arc, Mutex},
-};
-use thread::DatagenThread;
-
 mod buffer;
 mod deployment;
 mod thread;
+mod value;
 
 #[derive(Debug)]
 struct Args {
     threads: usize,
+    epochs: usize,
+    size: usize,
     limit: usize,
     iterations: usize,
+    network: String,
     output: String,
 }
 
@@ -36,63 +31,15 @@ fn main() {
     #[cfg(feature = "datagen")]
     {
         let args = Args {
-            threads: 4,
-            limit: 100,
+            threads: 1,
+            epochs: 16,
+            size: 250_000,
+            limit: 1,
             iterations: 800,
+            network: String::from("value.net"),
             output: String::from("datagen.bin"),
         };
 
-        run_datagen(args);
-        read_datagen(&args.output);
+        value::run(args);
     }
-}
-
-fn run_datagen(args: Args) {
-    println!("{:?}", args);
-
-    let abort = AtomicBool::new(false);
-    let abort = &abort;
-
-    let file = OpenOptions::new()
-        .append(true)
-        .create(true)
-        .open(args.output)
-        .unwrap();
-    let buffer = ReplayBuffer {
-        file,
-        games: 0,
-        limit: args.limit,
-    };
-
-    let buffer_mutex = Arc::new(Mutex::new(buffer));
-
-    std::thread::scope(|s| {
-        let abort = &abort;
-
-        for _ in 0..args.threads {
-            let buffer = buffer_mutex.clone();
-
-            s.spawn(move || {
-                let mut thread = DatagenThread::new(args.iterations, buffer, abort);
-                thread.run();
-            });
-        }
-    });
-}
-
-fn read_datagen(output: &str) -> Vec<SearchData> {
-    let config = config::standard();
-
-    let file = File::open(output).unwrap();
-    let mut reader = BufReader::new(file);
-
-    let mut data = Vec::new();
-    loop {
-        match bincode::decode_from_reader(&mut reader, config) {
-            Ok(search_data) => data.push(search_data),
-            Err(_) => break,
-        }
-    }
-
-    data
 }

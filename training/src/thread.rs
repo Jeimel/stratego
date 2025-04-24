@@ -6,10 +6,10 @@ use std::sync::{
 use stratego::{
     deployment::Deployment,
     mcts::MCTS,
-    policy::uniform,
-    select::uct,
+    policy::Policy,
+    select::Select,
     stratego::{GameState, StrategoState},
-    value::simulation_uniform,
+    value::{Network, Value},
 };
 
 pub struct DatagenThread<'a> {
@@ -19,14 +19,19 @@ pub struct DatagenThread<'a> {
 }
 
 impl<'a> DatagenThread<'a> {
-    pub fn new(iterations: usize, buffer: Arc<Mutex<ReplayBuffer>>, abort: &'a AtomicBool) -> Self {
+    pub fn new(
+        iterations: usize,
+        buffer: Arc<Mutex<ReplayBuffer>>,
+        network: Arc<Network>,
+        abort: &'a AtomicBool,
+    ) -> Self {
         Self {
             mcts: MCTS::new(
                 iterations,
-                simulation_uniform,
-                uniform,
-                uct,
-                Some(Deployment::DATASET),
+                Value::Network(network),
+                Policy::Uniform,
+                Select::UCT(1.41),
+                Deployment::Dataset,
             ),
             buffer,
             abort,
@@ -46,11 +51,7 @@ impl<'a> DatagenThread<'a> {
     fn game_loop(&mut self) {
         let deployment = self.deployment();
         let mut pos = StrategoState::from(&deployment);
-        let mut data = SearchData {
-            pos: deployment,
-            result: 0.0,
-            moves: Vec::new(),
-        };
+        let mut data = Vec::new();
 
         let mut ply = 0;
         while !pos.game_over() {
@@ -66,6 +67,8 @@ impl<'a> DatagenThread<'a> {
                 pos.set_game_state(GameState::Draw);
                 break;
             }
+
+            let features = pos.features(pos.stm() as usize);
 
             let mov = self.mcts.go(&pos);
             let mov = gen.iter().find(|m| format!("{}", m) == format!("{}", mov));
@@ -84,35 +87,35 @@ impl<'a> DatagenThread<'a> {
                 policy.push((mov, child.stats().visits));
             }
 
-            let best = root.max_visits().unwrap();
-            data.push(
-                mov,
-                best.stats().reward / best.stats().visits as f32,
-                policy,
-            );
+            data.push(SearchData::new(features, policy));
         }
 
-        let stm = pos.stm() as usize as f32;
-        data.result = match pos.game_state() {
+        // Last move is from other stm
+        let mut result = match pos.game_state() {
             GameState::Ongoing => unreachable!(),
-            GameState::Win => -1.0 + 2.0 * stm,
+            GameState::Win => -1.0,
             GameState::Draw => 0.0,
-            GameState::Loss => 1.0 - 2.0 * stm,
+            GameState::Loss => 1.0,
         };
 
+        for i in (0..data.len()).rev() {
+            data[i].target = result;
+            result = -result;
+        }
+
         let mut buffer = self.buffer.lock().unwrap();
-        buffer.push(&data, self.abort);
+        buffer.push(data, self.abort);
     }
 
     fn deployment(&mut self) -> String {
-        let red = Deployment::RANDOM
+        let red = Deployment::Heuristic
             .get()
             .to_ascii_uppercase()
             .split('/')
             .rev()
             .collect::<Vec<_>>()
             .join("/");
-        let blue = Deployment::RANDOM.get().to_ascii_lowercase();
+        let blue = Deployment::Heuristic.get().to_ascii_lowercase();
 
         format!("{}/8/8/{} r", blue, red)
     }
