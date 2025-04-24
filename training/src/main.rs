@@ -5,17 +5,6 @@ mod deployment;
 mod thread;
 mod value;
 
-#[derive(Debug)]
-struct Args {
-    threads: usize,
-    epochs: usize,
-    size: usize,
-    limit: usize,
-    iterations: usize,
-    network: String,
-    output: String,
-}
-
 fn main() {
     #[cfg(feature = "deployment")]
     {
@@ -30,11 +19,13 @@ fn main() {
 
     #[cfg(feature = "datagen")]
     {
-        let args = Args {
+        let args = value::ValueArgs {
             threads: 1,
-            epochs: 16,
-            size: 250_000,
-            limit: 1,
+            steps: 1,
+            epochs: 1,
+            batch_size: 32,
+            buffer_size: 250,
+            games: 8,
             iterations: 800,
             network: String::from("value.net"),
             output: String::from("datagen.bin"),

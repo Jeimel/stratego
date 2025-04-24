@@ -5,10 +5,54 @@ use bincode::{
 use std::{
     collections::VecDeque,
     fs::{File, OpenOptions},
-    io::BufReader,
-    sync::atomic::{AtomicBool, Ordering},
+    io::{BufReader, BufWriter, Write},
 };
 use stratego::stratego::{Move, StrategoState};
+use tch::{kind, Tensor};
+
+pub struct BatchSampler<'a> {
+    index: i64,
+    perm: Tensor,
+    inputs: &'a Tensor,
+    targets: &'a Tensor,
+    size: i64,
+    batch: i64,
+}
+
+impl<'a> BatchSampler<'a> {
+    pub fn new(inputs: &'a Tensor, targets: &'a Tensor, size: i64, batch: i64) -> Self {
+        let (a, b) = (inputs.size()[0], targets.size()[0]);
+        assert!(a == b);
+
+        Self {
+            index: 0,
+            perm: Tensor::randperm(a, kind::INT64_CPU),
+            inputs,
+            targets,
+            size,
+            batch,
+        }
+    }
+}
+
+impl<'a> Iterator for BatchSampler<'a> {
+    type Item = (Tensor, Tensor);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let next = (self.index + self.batch).min(self.size);
+        if self.index >= self.size || (next - self.index) < self.batch {
+            return None;
+        }
+
+        let batch = self.perm.narrow(0, self.index, next - self.index);
+        self.index = next;
+
+        Some((
+            self.inputs.index_select(0, &batch),
+            self.targets.index_select(0, &batch),
+        ))
+    }
+}
 
 #[derive(Clone, Encode, Decode)]
 pub struct SearchData {
@@ -65,32 +109,27 @@ impl ReplayBuffer {
         buffer
     }
 
-    pub fn push(&mut self, data: Vec<SearchData>, abort: &AtomicBool) {
-        if abort.load(Ordering::Relaxed) {
-            return;
-        }
-
+    pub fn push(&mut self, data: Vec<SearchData>) {
         self.games += 1;
 
-        let config = config::standard();
-        for search_data in data {
-            bincode::encode_into_std_write(&search_data, &mut self.file, config).unwrap();
+        {
+            let mut writer = BufWriter::new(&mut self.file);
+            let config = config::standard();
 
-            self.push_pop(search_data);
+            for search_data in &data {
+                bincode::encode_into_std_write(search_data, &mut writer, config).unwrap();
+            }
+
+            writer.flush().unwrap();
         }
 
-        if self.games >= self.limit {
-            abort.store(true, Ordering::Relaxed);
-            return;
+        for search_data in data {
+            self.push_pop(search_data);
         }
 
         if self.games % 128 == 0 {
             self.report();
         }
-    }
-
-    pub fn reset(&mut self) {
-        self.games = 0;
     }
 
     pub fn report(&self) {

@@ -1,8 +1,4 @@
-use crate::buffer::{ReplayBuffer, SearchData};
-use std::sync::{
-    atomic::{AtomicBool, Ordering},
-    Arc, Mutex,
-};
+use crate::buffer::SearchData;
 use stratego::{
     deployment::Deployment,
     mcts::MCTS,
@@ -12,19 +8,14 @@ use stratego::{
     value::{Network, Value},
 };
 
-pub struct DatagenThread<'a> {
+pub struct DatagenThread {
     mcts: MCTS,
-    buffer: Arc<Mutex<ReplayBuffer>>,
-    abort: &'a AtomicBool,
+    buffer: Vec<SearchData>,
+    games: usize,
 }
 
-impl<'a> DatagenThread<'a> {
-    pub fn new(
-        iterations: usize,
-        buffer: Arc<Mutex<ReplayBuffer>>,
-        network: Arc<Network>,
-        abort: &'a AtomicBool,
-    ) -> Self {
+impl DatagenThread {
+    pub fn new(iterations: usize, games: usize, network: Network) -> Self {
         Self {
             mcts: MCTS::new(
                 iterations,
@@ -33,19 +24,17 @@ impl<'a> DatagenThread<'a> {
                 Select::UCT(1.41),
                 Deployment::Dataset,
             ),
-            buffer,
-            abort,
+            buffer: Vec::with_capacity(games),
+            games,
         }
     }
 
-    pub fn run(&mut self) {
-        loop {
-            if self.abort.load(Ordering::Relaxed) {
-                break;
-            }
-
+    pub fn run(mut self) -> Vec<SearchData> {
+        for _ in 0..self.games {
             self.game_loop();
         }
+
+        self.buffer
     }
 
     fn game_loop(&mut self) {
@@ -103,8 +92,7 @@ impl<'a> DatagenThread<'a> {
             result = -result;
         }
 
-        let mut buffer = self.buffer.lock().unwrap();
-        buffer.push(data, self.abort);
+        self.buffer.append(&mut data);
     }
 
     fn deployment(&mut self) -> String {

@@ -1,7 +1,6 @@
 use crate::stratego::StrategoState;
 use heuristic::heuristic;
 use simulation::{simulation_cutoff, simulation_ordered};
-use std::sync::Arc;
 
 pub use network::Network;
 pub use simulation::simulation_uniform;
@@ -15,7 +14,7 @@ pub enum Value {
     SimulationOrdered,
     SimulationCutoff(f32),
     Heuristic,
-    Network(Arc<Network>),
+    Network(Network),
 }
 
 impl Value {
