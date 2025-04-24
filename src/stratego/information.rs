@@ -1,5 +1,6 @@
 use super::{util::Flag, Move, Piece, Position};
 use crate::bitboard_loop;
+use std::usize;
 
 /// Keeps track of all legal information,
 /// which can be retrieved from the `StrategoState`
@@ -7,10 +8,11 @@ use crate::bitboard_loop;
 /// What moves reveal legal information?
 /// - moves of absolute distance > 1 (Piece must be Scout)
 /// - captures (Piece ranks must be revealed)
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct InformationSet {
     unknown: [[usize; 10]; 2],
     bb: [u64; 2],
+    initial: [u64; 2],
 }
 
 impl InformationSet {
@@ -30,30 +32,46 @@ impl InformationSet {
             }
         }
 
-        InformationSet { unknown, bb }
+        InformationSet {
+            unknown,
+            bb,
+            initial: bb,
+        }
     }
 
     pub fn available(&self, stm: usize) -> Vec<usize> {
         self.unknown[stm]
             .iter()
             .enumerate()
-            .skip(2)
+            .skip(3)
+            .take(5)
             .filter(|(_, &pc)| pc > 0usize)
             .flat_map(|(i, &pc)| std::iter::repeat(i).take(pc))
             .collect()
+    }
+
+    pub fn available_immovable(&self, stm: usize) -> Vec<usize> {
+        [
+            (Piece::FLAG, self.unknown[stm][Piece::FLAG]),
+            (Piece::BOMB, self.unknown[stm][Piece::BOMB]),
+        ]
+        .iter()
+        .filter(|(_, pc)| *pc > 0usize)
+        .flat_map(|(i, pc)| std::iter::repeat(*i).take(*pc))
+        .collect()
     }
 
     pub fn get(&self, stm: usize) -> u64 {
         self.bb[stm]
     }
 
-    // TODO: create bitboard for start pos
-    //  - if only 3 bits are left from difference pieces must be bomb or flag
     pub fn update(&mut self, mov: &Move, board: &Position) {
         let stm = board.stm() as usize;
         let piece = mov.piece as usize;
+        let from_bb = 1u64 << mov.from;
+        let to_bb = 1u64 << mov.to;
 
-        if (mov.flag & Flag::CAPTURE) != 0 && ((1u64 << mov.to) & self.bb[stm ^ 1]) != 0 {
+        if (mov.flag & Flag::CAPTURE) != 0 && (to_bb & self.bb[stm ^ 1]) != 0 {
             self.remove(stm ^ 1, board.piece(mov.to), mov.to);
         }
 
@@ -61,8 +79,12 @@ impl InformationSet {
             return;
         }
 
-        self.bb[stm] ^= 1u64 << mov.from;
-        self.bb[stm] ^= 1u64 << mov.to;
+        if (self.initial[stm] & from_bb) != 0 {
+            self.initial[stm] ^= from_bb;
+        }
+
+        self.bb[stm] ^= from_bb;
+        self.bb[stm] ^= to_bb;
 
         if (mov.flag & Flag::CAPTURE) != 0 {
             self.remove(stm, piece, mov.to);

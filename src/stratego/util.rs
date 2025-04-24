@@ -22,6 +22,18 @@ macro_rules! bitboard_loop {
     };
 }
 
+pub fn flip_bb(bb: u64) -> u64 {
+    const K1: u64 = 0x00FF00FF00FF00FF;
+    const K2: u64 = 0x0000FFFF0000FFFF;
+
+    let mut bb = bb;
+    bb = ((bb >> 8) & K1) | ((bb & K1) << 8);
+    bb = ((bb >> 16) & K2) | ((bb & K2) << 16);
+    bb = (bb >> 32) | (bb << 32);
+
+    bb
+}
+
 c_enum!(Piece {
     FLAG: usize = 2,
     SPY: usize = 3,

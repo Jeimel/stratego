@@ -83,7 +83,7 @@ impl Position {
     pub const SYMBOLS: [char; 16] = [
         'F', 'S', 'C', 'D', 'G', 'M', 'X', 'B', 'f', 's', 'c', 'd', 'g', 'm', 'x', 'b',
     ];
-    const LAKES: u64 = 0x2424000000;
+    pub const LAKES: u64 = 0x2424000000;
 
     pub fn from(notation: &str) -> Self {
         let fields = notation.split(' ').collect::<Vec<&str>>();
@@ -152,6 +152,10 @@ impl Position {
 
     pub fn get(&self, index: usize) -> u64 {
         self.bb[index]
+    }
+
+    pub fn bb(&self) -> [u64; 10] {
+        self.bb
     }
 
     pub fn toggle(&mut self, stm: usize, piece: usize, sq: u8) {

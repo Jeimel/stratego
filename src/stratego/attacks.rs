@@ -29,6 +29,17 @@ pub fn orthogonal(sq: usize) -> u64 {
     ATTACKS[sq]
 }
 
+pub fn chebyshev(sq: usize) -> u64 {
+    const ATTACKS: [u64; 64] = init_lookup!(|bb| {
+        let attacks = ((bb << 1) & 0xfefefefefefefefe) | ((bb >> 1) & 0x7f7f7f7f7f7f7f7f);
+        let king = bb | attacks;
+
+        attacks | (king << 8) | (king >> 8)
+    });
+
+    ATTACKS[sq]
+}
+
 pub fn ranged(sq: usize, occ: u64) -> u64 {
     #[derive(Clone, Copy)]
     struct FileMask {

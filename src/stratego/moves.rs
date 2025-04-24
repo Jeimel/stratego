@@ -1,6 +1,7 @@
 use crate::stratego::util::{Flag, Piece};
+use bincode::{Decode, Encode};
 
-#[derive(Copy, Clone, Default, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Default, Eq, PartialEq, Hash, Encode, Decode)]
 pub struct Move {
     pub from: u8,
     pub to: u8,

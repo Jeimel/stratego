@@ -4,12 +4,14 @@ mod moves;
 mod position;
 mod util;
 
-use crate::bitboard_loop;
-use information::InformationSet;
+pub use attacks::{chebyshev, orthogonal, ranged};
 pub use moves::{Move, MoveList, MoveStack};
 pub use position::Position;
+pub use util::{flip_bb, Flag, Piece};
+
+use crate::bitboard_loop;
+use information::InformationSet;
 use rand::seq::SliceRandom;
-pub use util::Piece;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum GameState {
@@ -34,6 +36,8 @@ impl std::fmt::Display for StrategoState {
 }
 
 impl StrategoState {
+    pub const FEATURES: usize = 64 * 8 * 2;
+
     pub fn from(notation: &str) -> Self {
         let board = Position::from(notation);
 
@@ -48,7 +52,11 @@ impl StrategoState {
         self.board
     }
 
-    pub fn gen(&mut self) -> MoveList {
+    pub fn information(&self) -> InformationSet {
+        self.info
+    }
+
+    pub fn gen(&self) -> MoveList {
         self.board.gen(&self.stack)
     }
 
@@ -58,9 +66,59 @@ impl StrategoState {
         self.stack.push(self.board.hash());
     }
 
+    /// Features with the pov of the current `stm` first
+    pub fn features(&self, stm: usize) -> [f32; StrategoState::FEATURES] {
+        let mut features = [0f32; StrategoState::FEATURES];
+
+        let (red_offset, blue_offset) = if stm == 0 {
+            (0, StrategoState::FEATURES / 2)
+        } else {
+            (StrategoState::FEATURES / 2, 0)
+        };
+
+        let red_bb = self.board.get(0);
+        let blue_bb = self.board.get(1);
+        for piece in Piece::SPY..=Piece::BOMB {
+            let pieces = if piece != Piece::UNKNOWN {
+                self.board.get(piece)
+            } else {
+                self.info.get(0) | self.info.get(1)
+            };
+
+            let mut red_bb = red_bb & pieces;
+            let mut blue_bb = blue_bb & pieces;
+
+            bitboard_loop!(red_bb, sq, {
+                let idx = (piece - 2) + sq as usize * 8;
+                features[red_offset + idx] = 1.0;
+            });
+
+            bitboard_loop!(blue_bb, sq, {
+                let idx = (piece - 2) + sq as usize * 8;
+                features[blue_offset + idx] = 1.0;
+            });
+        }
+
+        features
+    }
+
     pub fn determination(&self) -> Self {
+        const BASE: [u64; 2] = [0xffffff, 0xffffff0000000000];
+
         let mut pos = self.clone();
         let mut rng = rand::rng();
+
+        let mut red = pos.info.available_immovable(0);
+        let mut blue = pos.info.available_immovable(1);
+
+        red.shuffle(&mut rng);
+        blue.shuffle(&mut rng);
+
+        let unknown = pos.board.get(Piece::UNKNOWN) & BASE[0] & pos.board.get(0);
+        StrategoState::determinize_bb(&mut pos, 0, unknown, &mut red);
+
+        let unknown = pos.board.get(Piece::UNKNOWN) & BASE[1] & pos.board.get(1);
+        StrategoState::determinize_bb(&mut pos, 1, unknown, &mut blue);
 
         let mut red = pos.info.available(0);
         let mut blue = pos.info.available(1);
@@ -68,19 +126,11 @@ impl StrategoState {
         red.shuffle(&mut rng);
         blue.shuffle(&mut rng);
 
-        let mut unknown = pos.board.get(Piece::UNKNOWN);
-        bitboard_loop!(unknown, sq, {
-            let stm = usize::from((pos.board.get(0) & (1 << sq)) == 0);
+        let unknown = pos.board.get(Piece::UNKNOWN) & pos.board.get(0);
+        StrategoState::determinize_bb(&mut pos, 0, unknown, &mut red);
 
-            let new = if stm == 0 {
-                red.pop().unwrap()
-            } else {
-                blue.pop().unwrap()
-            };
-
-            pos.board.toggle(stm, Piece::UNKNOWN, sq);
-            pos.board.toggle(stm, new, sq);
-        });
+        let unknown = pos.board.get(Piece::UNKNOWN) & pos.board.get(1);
+        StrategoState::determinize_bb(&mut pos, 1, unknown, &mut blue);
 
         pos
     }
@@ -117,5 +167,17 @@ impl StrategoState {
 
     pub fn game_over(&self) -> bool {
         self.board.game_over()
+    }
+
+    fn determinize_bb(pos: &mut StrategoState, stm: usize, bb: u64, pieces: &mut Vec<usize>) {
+        let mut bb = bb;
+
+        bitboard_loop!(bb, sq, {
+            let new = pieces.pop();
+            if let Some(new) = new {
+                pos.board.toggle(stm, Piece::UNKNOWN, sq);
+                pos.board.toggle(stm, new, sq);
+            }
+        });
     }
 }
