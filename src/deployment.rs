@@ -12,7 +12,7 @@ pub use network::Network;
 // Deployments from pov of blue
 pub enum Deployment {
     Random,
-    Heuristic,
+    Heuristic(usize, usize),
     Dataset,
     Network(Network),
 }
@@ -21,7 +21,7 @@ impl Deployment {
     pub fn get(&self) -> String {
         match self {
             Deployment::Random => random(),
-            Deployment::Heuristic => heuristic(),
+            Deployment::Heuristic(attempts, min) => heuristic(*attempts, *min),
             Deployment::Dataset => dataset(),
             Deployment::Network(net) => net.get(),
         }

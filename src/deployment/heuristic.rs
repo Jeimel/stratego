@@ -4,10 +4,12 @@ use crate::{
     stratego::{Piece, Position},
 };
 
-pub fn heuristic() -> String {
-    const ATTEMPTS: usize = 50;
+pub fn heuristic(attempts: usize, min: usize) -> String {
+    if min != 0 {
+        return heuristic_min(min as isize);
+    }
 
-    let (deployment, _) = (0..ATTEMPTS)
+    let (deployment, _) = (0..attempts)
         .map(|_| {
             let deployment = random();
             let score = evaluate(&deployment);
@@ -18,6 +20,17 @@ pub fn heuristic() -> String {
         .unwrap();
 
     deployment
+}
+
+pub fn heuristic_min(min: isize) -> String {
+    loop {
+        let deployment = random();
+        let score = evaluate(&deployment);
+
+        if score > min {
+            return deployment;
+        }
+    }
 }
 
 pub fn evaluate(deployment: &str) -> isize {
