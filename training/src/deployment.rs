@@ -4,41 +4,50 @@ use stratego::{
     value::simulation_uniform,
 };
 use tch::{
-    nn::{Adam, ModuleT, OptimizerConfig, VarStore},
-    Kind, Reduction, Tensor,
+    nn::{Adam, OptimizerConfig, VarStore},
+    Device, Kind, Reduction, Tensor,
 };
 
-pub fn run(vs: &VarStore, net: Network, epochs: usize, batch_size: usize) {
+pub fn run(path: &str, epochs: usize, batch_size: usize) {
+    let mut vs = VarStore::new(Device::cuda_if_available());
+    let net = Network::new(&vs.root());
+
+    let _ = vs.load(path);
+    vs.save(path).unwrap();
+
     let mut opt = Adam::default().build(&vs, 1e-3).unwrap();
+    opt.set_weight_decay(1e-4);
 
     for i in 0..epochs {
-        let (input, targets) = batch_supervised(&net, batch_size);
+        let (inputs, targets) = batch_supervised(&net, batch_size);
 
-        let input = Tensor::stack(&input, 0);
+        let inputs = Tensor::stack(&inputs, 0);
         let targets = Tensor::stack(&targets, 0);
 
-        let loss = net
-            .forward_t(&input, true)
-            .l1_loss(&targets, Reduction::Mean);
+        let predictions = net.forward(&inputs);
+
+        let loss = predictions.mse_loss(&targets, Reduction::Mean);
         opt.backward_step(&loss);
 
-        println!("info epoch {i} loss {:?}", loss);
+        println!("info epoch {} loss {:?}", i + 1, loss);
     }
+
+    vs.save(path).unwrap();
 }
 
 fn batch_supervised(net: &Network, size: usize) -> (Vec<Tensor>, Vec<Tensor>) {
-    let mut input = Vec::with_capacity(size);
+    let mut inputs = Vec::with_capacity(size);
     let mut targets = Vec::with_capacity(size);
 
     for _ in 0..size {
-        let deployment = net.get();
+        let deployment = net.get(5);
         let score = evaluate(&deployment);
 
-        input.push(Network::tensor(&deployment));
-        targets.push(Tensor::from(score as f32 / 94.0));
+        inputs.push(Network::tensor(&deployment));
+        targets.push(Tensor::from(score as f32).unsqueeze(0));
     }
 
-    (input, targets)
+    (inputs, targets)
 }
 
 fn batch_reinforcement(net: &Network, size: usize) -> (Vec<Tensor>, Vec<Tensor>) {
@@ -46,7 +55,7 @@ fn batch_reinforcement(net: &Network, size: usize) -> (Vec<Tensor>, Vec<Tensor>)
     let mut targets = Vec::with_capacity(size);
 
     for _ in 0..size {
-        let (red_deployment, blue_deployment) = (net.get(), net.get());
+        let (red_deployment, blue_deployment) = (net.get(25), net.get(25));
         let mut pos = position(&red_deployment, &blue_deployment);
 
         let result = simulation_uniform(&mut pos);

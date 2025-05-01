@@ -14,7 +14,7 @@ pub enum Deployment {
     Random,
     Heuristic(usize, usize),
     Dataset,
-    Network(Network),
+    Network(Network, usize),
 }
 
 impl Deployment {
@@ -23,7 +23,7 @@ impl Deployment {
             Deployment::Random => random(),
             Deployment::Heuristic(attempts, min) => heuristic(*attempts, *min),
             Deployment::Dataset => dataset(),
-            Deployment::Network(net) => net.get(),
+            Deployment::Network(net, attempts) => net.get(*attempts),
         }
     }
 }

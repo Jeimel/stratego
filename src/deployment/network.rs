@@ -2,7 +2,7 @@ use super::random;
 use crate::stratego::Position;
 use ordered_float::OrderedFloat;
 use tch::{
-    nn::{self, Module},
+    nn::{self},
     Tensor,
 };
 
@@ -16,20 +16,18 @@ pub struct Network {
 }
 
 impl Network {
-    const ATTEMPTS: usize = 50;
-
     pub fn new(vs: &nn::Path) -> Self {
         Network {
-            l1: nn::linear(vs, 24 * 7, 100, Default::default()),
-            l2: nn::linear(vs, 100, 100, Default::default()),
-            l3: nn::linear(vs, 100, 100, Default::default()),
-            l4: nn::linear(vs, 100, 100, Default::default()),
-            l5: nn::linear(vs, 100, 1, Default::default()),
+            l1: nn::linear(vs, 24 * 7, 256, Default::default()),
+            l2: nn::linear(vs, 256, 128, Default::default()),
+            l3: nn::linear(vs, 128, 64, Default::default()),
+            l4: nn::linear(vs, 64, 32, Default::default()),
+            l5: nn::linear(vs, 32, 1, Default::default()),
         }
     }
 
-    pub fn get(&self) -> String {
-        let (deployment, _) = (0..Network::ATTEMPTS)
+    pub fn get(&self, attempts: usize) -> String {
+        let (deployment, _) = (0..attempts)
             .map(|_| {
                 let deployment = random();
                 let data = Network::tensor(&deployment);
@@ -43,6 +41,18 @@ impl Network {
             .unwrap();
 
         deployment
+    }
+
+    pub fn forward(&self, xs: &tch::Tensor) -> tch::Tensor {
+        xs.apply(&self.l1)
+            .relu()
+            .apply(&self.l2)
+            .relu()
+            .apply(&self.l3)
+            .relu()
+            .apply(&self.l4)
+            .relu()
+            .apply(&self.l5)
     }
 
     pub fn tensor(deployment: &str) -> Tensor {
@@ -75,20 +85,5 @@ impl Network {
         }
 
         Tensor::from_slice(&data)
-    }
-}
-
-impl nn::Module for Network {
-    fn forward(&self, xs: &tch::Tensor) -> tch::Tensor {
-        xs.apply(&self.l1)
-            .relu()
-            .apply(&self.l2)
-            .relu()
-            .apply(&self.l3)
-            .relu()
-            .apply(&self.l4)
-            .relu()
-            .apply(&self.l5)
-            .sigmoid()
     }
 }
