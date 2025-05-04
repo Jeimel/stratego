@@ -6,67 +6,32 @@ use std::{
     collections::VecDeque,
     fs::{File, OpenOptions},
     io::{BufReader, BufWriter, Write},
+    usize,
 };
 use stratego::stratego::{Move, StrategoState};
-use tch::{kind, Tensor};
-
-pub struct BatchSampler<'a> {
-    index: i64,
-    perm: Tensor,
-    inputs: &'a Tensor,
-    targets: &'a Tensor,
-    size: i64,
-    batch: i64,
-}
-
-impl<'a> BatchSampler<'a> {
-    pub fn new(inputs: &'a Tensor, targets: &'a Tensor, size: i64, batch: i64) -> Self {
-        let (a, b) = (inputs.size()[0], targets.size()[0]);
-        assert!(a == b);
-
-        Self {
-            index: 0,
-            perm: Tensor::randperm(a, kind::INT64_CPU),
-            inputs,
-            targets,
-            size,
-            batch,
-        }
-    }
-}
-
-impl<'a> Iterator for BatchSampler<'a> {
-    type Item = (Tensor, Tensor);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let next = (self.index + self.batch).min(self.size);
-        if self.index >= self.size || (next - self.index) < self.batch {
-            return None;
-        }
-
-        let batch = self.perm.narrow(0, self.index, next - self.index);
-        self.index = next;
-
-        Some((
-            self.inputs.index_select(0, &batch),
-            self.targets.index_select(0, &batch),
-        ))
-    }
-}
 
 #[derive(Clone, Encode, Decode)]
 pub struct SearchData {
-    pub input: [f32; StrategoState::FEATURES],
+    pub input: [[f32; StrategoState::FEATURES]; 2],
     pub target: f32,
+    pub result: f32,
     pub policy: Vec<(Move, usize)>,
+    pub stm: bool,
 }
 
 impl SearchData {
-    pub fn new(input: [f32; StrategoState::FEATURES], policy: Vec<(Move, usize)>) -> Self {
+    pub fn new(
+        input: [[f32; StrategoState::FEATURES]; 2],
+        target: f32,
+        policy: Vec<(Move, usize)>,
+        stm: bool,
+    ) -> Self {
         Self {
             input,
-            target: 0.0,
+            target,
+            result: 0.0,
             policy,
+            stm,
         }
     }
 }
@@ -75,8 +40,9 @@ pub struct ReplayBuffer {
     pub file: File,
     pub dataset: VecDeque<SearchData>,
     pub size: usize,
-    pub games: usize,
     pub limit: usize,
+    pub len: usize,
+    pub results: [usize; 3],
 }
 
 impl ReplayBuffer {
@@ -91,8 +57,9 @@ impl ReplayBuffer {
             file,
             dataset: VecDeque::with_capacity(size),
             size,
-            games: 0,
             limit,
+            len: 0,
+            results: [0usize; 3],
         };
 
         let config = config::standard();
@@ -110,8 +77,6 @@ impl ReplayBuffer {
     }
 
     pub fn push(&mut self, data: Vec<SearchData>) {
-        self.games += 1;
-
         {
             let mut writer = BufWriter::new(&mut self.file);
             let config = config::standard();
@@ -126,21 +91,30 @@ impl ReplayBuffer {
         for search_data in data {
             self.push_pop(search_data);
         }
-
-        if self.games % 128 == 0 {
-            self.report();
-        }
     }
 
     pub fn report(&self) {
+        let sum = (self.results[0] + self.results[1] + self.results[2]) as f32;
+
         println!(
-            "info datagen games {} dataset {}",
-            self.games,
-            self.dataset.len()
+            "info datagen len {} wins {} draws {} losses {}",
+            self.len,
+            self.results[0] as f32 / sum,
+            self.results[1] as f32 / sum,
+            self.results[2] as f32 / sum
         );
     }
 
     fn push_pop(&mut self, data: SearchData) {
+        match data.result {
+            -1.0 => self.results[2] += 1,
+            0.0 => self.results[1] += 1,
+            1.0 => self.results[0] += 1,
+            _ => unreachable!(),
+        }
+
+        self.len += 1;
+
         if self.dataset.len() == self.size {
             self.dataset.pop_front();
         }
