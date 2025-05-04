@@ -1,7 +1,7 @@
 use super::{node::Node, Search};
 use crate::{
     stratego::{GameState, StrategoState},
-    value::Value,
+    value::{self},
 };
 use rand::distr::Distribution;
 use std::sync::Arc;
@@ -67,7 +67,7 @@ fn utility<S: Search>(pos: &mut StrategoState, search: &S) -> f32 {
 
 fn heuristic(pos: &mut StrategoState) -> f32 {
     match pos.game_state() {
-        GameState::Ongoing => Value::Heuristic.get(pos),
+        GameState::Ongoing => value::evaluate(pos),
         GameState::Win => 1.0,
         GameState::Draw => 0.0,
         GameState::Loss => -1.0,

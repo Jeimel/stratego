@@ -137,6 +137,8 @@ impl Tournament {
             GameState::Ongoing => unreachable!(),
         };
 
+        println!("{}", pos);
+
         result
     }
 

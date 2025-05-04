@@ -8,25 +8,19 @@ mod value;
 fn main() {
     #[cfg(feature = "deployment")]
     {
-        let mut vs = tch::nn::VarStore::new(tch::Device::cuda_if_available());
-        let net = stratego::deployment::Network::new(&vs.root());
-
-        vs.load("deployment.net").unwrap();
-        deployment::run(&vs, net, 30, 2048);
-
-        vs.save("deployment.net").unwrap();
+        deployment::run("deployment.net", 2000, 4096);
     }
 
     #[cfg(feature = "datagen")]
     {
         let args = value::ValueArgs {
-            threads: 1,
-            steps: 1,
-            epochs: 1,
-            batch_size: 32,
-            buffer_size: 250,
-            games: 8,
-            iterations: 800,
+            threads: 4,
+            steps: 50,
+            epochs: 50,
+            batch_size: 1024,
+            buffer_size: 1_000_000,
+            games: 512,
+            iterations: 1600,
             network: String::from("value.net"),
             output: String::from("datagen.bin"),
         };
