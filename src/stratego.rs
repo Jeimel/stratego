@@ -36,7 +36,9 @@ impl std::fmt::Display for StrategoState {
 }
 
 impl StrategoState {
-    pub const FEATURES: usize = 64 * 8 * 2;
+    const PIECES: usize = 7;
+    const BOARD: usize = 64;
+    pub const FEATURES: usize = StrategoState::BOARD * StrategoState::PIECES * 2;
 
     pub fn from(notation: &str) -> Self {
         let board = Position::from(notation);
@@ -66,36 +68,45 @@ impl StrategoState {
         self.stack.push(self.board.hash());
     }
 
-    /// Features with the pov of the current `stm` first
-    pub fn features(&self, stm: usize) -> [f32; StrategoState::FEATURES] {
+    pub fn features<const STM: usize>(&self) -> [f32; StrategoState::FEATURES] {
         let mut features = [0f32; StrategoState::FEATURES];
-
-        let (red_offset, blue_offset) = if stm == 0 {
-            (0, StrategoState::FEATURES / 2)
-        } else {
-            (StrategoState::FEATURES / 2, 0)
-        };
 
         let red_bb = self.board.get(0);
         let blue_bb = self.board.get(1);
-        for piece in Piece::SPY..=Piece::BOMB {
-            let pieces = if piece != Piece::UNKNOWN {
-                self.board.get(piece)
-            } else {
-                self.info.get(0) | self.info.get(1)
+        for i in 0..StrategoState::PIECES {
+            let piece = match i {
+                0 => Piece::FLAG,
+                1 => Piece::SPY,
+                2 => Piece::SCOUT,
+                3 => Piece::MINER,
+                4 => Piece::GENERAL,
+                5 => Piece::MARSHAL,
+                6 => Piece::BOMB,
+                _ => unreachable!(),
             };
+
+            let pieces = self.board.get(piece);
 
             let mut red_bb = red_bb & pieces;
             let mut blue_bb = blue_bb & pieces;
 
+            if STM == 1 {
+                red_bb = flip_bb(red_bb);
+                blue_bb = flip_bb(blue_bb);
+            }
+
             bitboard_loop!(red_bb, sq, {
-                let idx = (piece - 2) + sq as usize * 8;
-                features[red_offset + idx] = 1.0;
+                let pc_idx = i * 2 + 0;
+                let halfkp = sq as usize + pc_idx * StrategoState::BOARD;
+
+                features[halfkp] = 1.0;
             });
 
             bitboard_loop!(blue_bb, sq, {
-                let idx = (piece - 2) + sq as usize * 8;
-                features[blue_offset + idx] = 1.0;
+                let pc_idx = i * 2 + 1;
+                let halfkp = sq as usize + pc_idx * StrategoState::BOARD;
+
+                features[halfkp] = 1.0;
             });
         }
 
