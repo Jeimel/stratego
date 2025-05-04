@@ -114,6 +114,6 @@ pub fn simulation_cutoff(pos: &mut StrategoState, c: f32) -> f32 {
         GameState::Draw => 0.0,
         GameState::Win => -1.0 + (2.0 * current),
         GameState::Loss => 1.0 + (-2.0 * current),
-        GameState::Ongoing => heuristic(pos),
+        GameState::Ongoing => heuristic(pos, 0.01),
     }
 }

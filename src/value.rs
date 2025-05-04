@@ -1,7 +1,7 @@
 use crate::stratego::StrategoState;
-use heuristic::heuristic;
 use simulation::{simulation_cutoff, simulation_ordered};
 
+pub use heuristic::{evaluate, heuristic};
 pub use network::Network;
 pub use simulation::simulation_uniform;
 
@@ -13,7 +13,7 @@ pub enum Value {
     SimulationUniform,
     SimulationOrdered,
     SimulationCutoff(f32),
-    Heuristic,
+    Heuristic(f32),
     Network(Network),
 }
 
@@ -23,7 +23,7 @@ impl Value {
             Value::SimulationUniform => simulation_uniform(pos),
             Value::SimulationOrdered => simulation_ordered(pos),
             Value::SimulationCutoff(c) => simulation_cutoff(pos, *c),
-            Value::Heuristic => heuristic(pos),
+            Value::Heuristic(scaling) => heuristic(pos, *scaling),
             Value::Network(nn) => nn.get(pos),
         }
     }

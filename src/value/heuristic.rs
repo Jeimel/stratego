@@ -4,21 +4,20 @@ use crate::{
     stratego::{chebyshev, flip_bb, Piece, Position, StrategoState},
 };
 
-pub fn heuristic(pos: &mut StrategoState) -> f32 {
-    const SCALING: f32 = 0.01;
-
-    (evaluate(pos) * SCALING).tanh()
+pub fn heuristic(pos: &mut StrategoState, scaling: f32) -> f32 {
+    (evaluate(pos) * scaling).tanh()
 }
 
-fn evaluate(pos: &mut StrategoState) -> f32 {
-    const VALUES: [f32; 7] = [
-        15.0, // Spy
-        5.0,  // Miner
-        5.0,  // Scout
-        15.0, // General
-        30.0, // Marshal
-        0.0,  // Unknown
-        10.0, // Bomb
+pub fn evaluate(pos: &mut StrategoState) -> f32 {
+    const VALUES: [f32; 8] = [
+        1000.0, // Flag
+        15.0,   // Spy
+        5.0,    // Miner
+        5.0,    // Scout
+        15.0,   // General
+        30.0,   // Marshal
+        0.0,    // Unknown
+        10.0,   // Bomb
     ];
 
     let board = pos.board();
@@ -30,7 +29,7 @@ fn evaluate(pos: &mut StrategoState) -> f32 {
         let pieces = board.get(side);
         let unknown = info.get(side);
 
-        for piece in Piece::SPY..=Piece::BOMB {
+        for piece in Piece::FLAG..=Piece::BOMB {
             if piece == Piece::UNKNOWN {
                 continue;
             }
@@ -38,7 +37,7 @@ fn evaluate(pos: &mut StrategoState) -> f32 {
             let mut mask = board.get(piece) & pieces;
             let count = mask.count_ones();
 
-            let mut value = VALUES[piece - 3];
+            let mut value = VALUES[piece - 2];
 
             if piece == Piece::MARSHAL && (board.get(Piece::SPY) & !pieces) != 0 {
                 value *= 0.5;

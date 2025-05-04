@@ -1,12 +1,17 @@
-use stratego::deployment::{evaluate, heuristic::heuristic};
+use stratego::deployment::evaluate;
 
 fn main() {
     const DEPLOYMENTS: usize = 200_000;
 
-    for attempts in [50, 100, 250, 1000] {
+    let mut vs = tch::nn::VarStore::new(tch::Device::cuda_if_available());
+    let net = stratego::deployment::Network::new(&vs.root());
+
+    vs.load("deployment.net").unwrap();
+
+    for attempts in [100] {
         let result: Vec<_> = (0..DEPLOYMENTS)
             .map(|_| {
-                let deployment = heuristic(attempts, 0);
+                let deployment = net.get(attempts);
 
                 (deployment.clone(), evaluate(&deployment))
             })
