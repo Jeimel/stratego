@@ -1,9 +1,16 @@
-use crate::{
-    buffer::{BatchSampler, ReplayBuffer},
-    thread::DatagenThread,
+use crate::{buffer::ReplayBuffer, thread::DatagenThread};
+use std::time::Instant;
+use stratego::{
+    deployment::Deployment,
+    mcts::ISMCTS,
+    policy::Policy,
+    select::Select,
+    tournament::Tournament,
+    value::{Network, Value},
+    Algorithm,
 };
-use stratego::value::Network;
 use tch::{
+    kind,
     nn::{Adam, OptimizerConfig, VarStore},
     Device, Reduction, Tensor,
 };
@@ -31,51 +38,103 @@ pub fn run(args: ValueArgs) {
     vs.save(&args.network).unwrap();
 
     let mut opt = Adam::default().build(&vs, 0.001).unwrap();
+
     let mut buffer = ReplayBuffer::new(&args.output, args.buffer_size, args.games);
 
     for step in 0..args.steps {
+        let start = Instant::now();
+
         {
-            let _ = tch::no_grad_guard();
+            let _guard = tch::no_grad_guard();
 
             datagen(&args, &mut buffer);
+            buffer.report();
         }
 
-        let mut inputs = Vec::with_capacity(args.buffer_size);
+        let mut features_us = Vec::with_capacity(args.buffer_size);
+        let mut features_them = Vec::with_capacity(args.buffer_size);
         let mut targets = Vec::with_capacity(args.buffer_size);
+        let mut results = Vec::with_capacity(args.buffer_size);
+
         for data in &buffer.dataset {
-            inputs.push(Tensor::from_slice(&data.input));
+            let red = Tensor::from_slice(&data.input[0]);
+            let blue = Tensor::from_slice(&data.input[1]);
+
+            let (us, them) = if data.stm { (blue, red) } else { (red, blue) };
+
+            features_us.push(us);
+            features_them.push(them);
             targets.push(Tensor::from_slice(&[data.target]));
+            results.push(Tensor::from_slice(&[data.result]));
         }
-        let inputs = Tensor::stack(&inputs, 0);
+
+        let features_us = Tensor::stack(&features_us, 0);
+        let features_them = Tensor::stack(&features_them, 0);
         let targets = Tensor::stack(&targets, 0);
+        let results = Tensor::stack(&results, 0);
 
-        assert!(inputs.size()[0] == targets.size()[0]);
+        let size = targets.size()[0];
 
-        let size = inputs.size()[0];
-        for epoch in 0..args.epochs {
-            let mut epoch_loss = 0.0;
+        let mut step_loss = 0.0;
+        for _ in 0..args.epochs {
+            let perm = Tensor::randperm(size, kind::INT64_CPU);
+            let batch = perm.narrow(0, 0, args.batch_size as i64);
 
-            let sampler = BatchSampler::new(&inputs, &targets, size, args.batch_size as i64);
-            for (inputs, targets) in sampler {
-                let predictions = net.forward(&inputs);
+            let features_us = features_us.index_select(0, &batch);
+            let features_them = features_them.index_select(0, &batch);
 
-                let loss = predictions.mse_loss(&targets, Reduction::Mean);
-                opt.backward_step(&loss);
+            let results = results.index_select(0, &batch);
 
-                epoch_loss += loss.double_value(&[]) as f32;
-            }
+            let outputs = net.forward_batch(&features_us, &features_them);
 
-            epoch_loss *= args.batch_size as f32 / size as f32;
-            println!("info epoch {} loss {}", epoch + 1, epoch_loss);
+            let loss = outputs.mse_loss(&results, Reduction::Mean);
+            opt.backward_step(&loss);
+
+            step_loss += loss.double_value(&[]) as f32;
         }
-
-        println!("info step {}", step + 1);
 
         vs.save(&args.network).unwrap();
+
+        step_loss /= args.epochs as f32;
+
+        println!(
+            "info step {} loss {} time {:?}",
+            step + 1,
+            step_loss,
+            start.elapsed()
+        );
+
+        if (step + 1) % 10 != 0 {
+            continue;
+        }
+
+        let one = ISMCTS::new(
+            10_000,
+            Value::Network(Network::new(&vs.root())),
+            Policy::Uniform,
+            Select::ISUCT(1.41),
+            Deployment::Heuristic(100, 0),
+        );
+        let two = ISMCTS::new(
+            10_000,
+            Value::SimulationUniform,
+            Policy::Uniform,
+            Select::ISUCT(1.41),
+            Deployment::Heuristic(100, 0),
+        );
+
+        let mut tournament = Tournament::new(150);
+        tournament.add("net", Algorithm::SOISMCTS(one), false);
+        tournament.add("uct", Algorithm::SOISMCTS(two), false);
+        tournament.run(10);
     }
 }
 
 fn datagen(args: &ValueArgs, buffer: &mut ReplayBuffer) {
+    if args.games == 0 {
+        return;
+    }
+
     assert!(args.games % args.threads == 0);
 
     let mut handles = Vec::with_capacity(args.threads);
