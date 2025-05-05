@@ -43,6 +43,7 @@ impl Network {
             .clamp(0.0, 1.0)
             .square()
             .apply(&self.l3)
+            .tanh()
     }
 
     pub fn forward_batch(&self, us: &Tensor, them: &Tensor) -> Tensor {
@@ -53,5 +54,6 @@ impl Network {
             .clamp(0.0, 1.0)
             .square()
             .apply(&self.l3)
+            .tanh()
     }
 }
