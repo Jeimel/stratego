@@ -82,12 +82,12 @@ pub fn run(args: ValueArgs) {
 
             let features_us = features_us.index_select(0, &batch);
             let features_them = features_them.index_select(0, &batch);
-
-            let results = results.index_select(0, &batch);
-
             let outputs = net.forward_batch(&features_us, &features_them);
 
-            let loss = outputs.mse_loss(&results, Reduction::Mean);
+            let targets =
+                results.index_select(0, &batch) * 0.7 + targets.index_select(0, &batch) * 0.3;
+
+            let loss = outputs.mse_loss(&targets, Reduction::Mean);
             opt.backward_step(&loss);
 
             step_loss += loss.double_value(&[]) as f32;
