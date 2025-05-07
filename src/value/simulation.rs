@@ -1,7 +1,5 @@
-use crate::{
-    stratego::{Flag, GameState, Piece, StrategoState},
-    value::heuristic::heuristic,
-};
+use super::Heuristic;
+use crate::stratego::{Flag, GameState, Piece, StrategoState};
 use rand::{
     distr::{weighted::WeightedIndex, Distribution},
     rng,
@@ -34,7 +32,7 @@ pub fn simulation_uniform(pos: &mut StrategoState) -> f32 {
     }
 }
 
-pub fn simulation_ordered(pos: &mut StrategoState) -> f32 {
+pub fn simulation_ordered(pos: &mut StrategoState, weights: [usize; 5]) -> f32 {
     let mut rng = rng();
 
     let stm = pos.stm();
@@ -47,7 +45,7 @@ pub fn simulation_ordered(pos: &mut StrategoState) -> f32 {
             break;
         }
 
-        let mut scores = vec![5usize; moves.len()];
+        let mut scores = vec![weights[0]; moves.len()];
         for (i, mov) in moves.iter().enumerate() {
             if (mov.flag & Flag::CAPTURE) == 0 {
                 continue;
@@ -55,7 +53,7 @@ pub fn simulation_ordered(pos: &mut StrategoState) -> f32 {
 
             let other = pos.board().piece(mov.to);
             if other == Piece::FLAG {
-                scores[i] = 50;
+                scores[i] = weights[4];
                 continue;
             }
 
@@ -70,9 +68,9 @@ pub fn simulation_ordered(pos: &mut StrategoState) -> f32 {
             };
 
             scores[i] = match ordering {
-                Ordering::Less => 1,
-                Ordering::Equal => 5,
-                Ordering::Greater => 15,
+                Ordering::Less => weights[1],
+                Ordering::Equal => weights[2],
+                Ordering::Greater => weights[3],
             }
         }
 
@@ -90,7 +88,7 @@ pub fn simulation_ordered(pos: &mut StrategoState) -> f32 {
     }
 }
 
-pub fn simulation_cutoff(pos: &mut StrategoState, c: f32) -> f32 {
+pub fn simulation_cutoff(pos: &mut StrategoState, c: f32, heuristic: Heuristic) -> f32 {
     let mut rng = rng();
 
     let stm = pos.stm();
@@ -114,6 +112,6 @@ pub fn simulation_cutoff(pos: &mut StrategoState, c: f32) -> f32 {
         GameState::Draw => 0.0,
         GameState::Win => -1.0 + (2.0 * current),
         GameState::Loss => 1.0 + (-2.0 * current),
-        GameState::Ongoing => heuristic(pos, 0.01),
+        GameState::Ongoing => heuristic(pos) * (-1.0 + 2.0 * current),
     }
 }
