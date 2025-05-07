@@ -5,19 +5,18 @@ use crate::{
 };
 
 pub fn heuristic(pos: &mut StrategoState, scaling: f32) -> f32 {
-    (evaluate(pos) * scaling).tanh()
+    (evaluate(pos) / scaling).tanh()
 }
 
 pub fn evaluate(pos: &mut StrategoState) -> f32 {
-    const VALUES: [f32; 8] = [
-        1000.0, // Flag
-        15.0,   // Spy
-        5.0,    // Miner
-        5.0,    // Scout
-        15.0,   // General
-        30.0,   // Marshal
-        0.0,    // Unknown
-        10.0,   // Bomb
+    const VALUES: [f32; 7] = [
+        15.0, // Spy
+        5.0,  // Miner
+        5.0,  // Scout
+        15.0, // General
+        30.0, // Marshal
+        0.0,  // Unknown
+        10.0, // Bomb
     ];
 
     let board = pos.board();
@@ -26,20 +25,21 @@ pub fn evaluate(pos: &mut StrategoState) -> f32 {
 
     let mut sum = 0.0;
     for side in [stm, stm ^ 1] {
-        let pieces = board.get(side);
+        let us = board.get(side);
+        let them = board.get(side ^ 1);
         let unknown = info.get(side);
 
-        for piece in Piece::FLAG..=Piece::BOMB {
+        for piece in Piece::SPY..=Piece::BOMB {
             if piece == Piece::UNKNOWN {
                 continue;
             }
 
-            let mut mask = board.get(piece) & pieces;
+            let mut mask = board.get(piece) & us;
             let count = mask.count_ones();
 
-            let mut value = VALUES[piece - 2];
+            let mut value = VALUES[piece - 3];
 
-            if piece == Piece::MARSHAL && (board.get(Piece::SPY) & !pieces) != 0 {
+            if piece == Piece::MARSHAL && (board.get(Piece::SPY) & them) != 0 {
                 value *= 0.5;
             }
 
@@ -49,12 +49,11 @@ pub fn evaluate(pos: &mut StrategoState) -> f32 {
                 value *= 2.0;
             }
 
-            let other = board.get(side ^ 1) & board.get(piece);
-            if count > other.count_ones() {
+            if count > (them & board.get(piece)).count_ones() {
                 value *= 1.5;
             }
 
-            if piece == Piece::SPY && (board.get(side ^ 1) & board.get(Piece::MARSHAL)) == 0 {
+            if piece == Piece::SPY && (them & board.get(Piece::MARSHAL)) == 0 {
                 value /= 5.0;
             }
 
@@ -72,16 +71,16 @@ pub fn evaluate(pos: &mut StrategoState) -> f32 {
         }
 
         let mut bb = [
-            pieces,
+            us,
             0,
-            board.get(Piece::FLAG) & pieces,
-            board.get(Piece::SPY) & pieces,
-            board.get(Piece::SCOUT) & pieces,
-            board.get(Piece::MINER) & pieces,
-            board.get(Piece::GENERAL) & pieces,
-            board.get(Piece::MARSHAL) & pieces,
+            board.get(Piece::FLAG) & us,
+            board.get(Piece::SPY) & us,
+            board.get(Piece::SCOUT) & us,
+            board.get(Piece::MINER) & us,
+            board.get(Piece::GENERAL) & us,
+            board.get(Piece::MARSHAL) & us,
             0,
-            board.get(Piece::BOMB) & pieces,
+            board.get(Piece::BOMB) & us,
         ];
 
         if side == 1 {
