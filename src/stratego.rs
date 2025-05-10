@@ -71,8 +71,8 @@ impl StrategoState {
     pub fn features<const STM: usize>(&self) -> [f32; StrategoState::FEATURES] {
         let mut features = [0f32; StrategoState::FEATURES];
 
-        let red_bb = self.board.get(0);
-        let blue_bb = self.board.get(1);
+        let us_bb = self.board.get(STM);
+        let them_bb = self.board.get(STM ^ 1);
         for i in 0..StrategoState::PIECES {
             let piece = match i {
                 0 => Piece::FLAG,
@@ -87,22 +87,22 @@ impl StrategoState {
 
             let pieces = self.board.get(piece);
 
-            let mut red_bb = red_bb & pieces;
-            let mut blue_bb = blue_bb & pieces;
+            let mut us_bb = us_bb & pieces;
+            let mut them_bb = them_bb & pieces;
 
             if STM == 1 {
-                red_bb = flip_bb(red_bb);
-                blue_bb = flip_bb(blue_bb);
+                us_bb = flip_bb(us_bb);
+                them_bb = flip_bb(them_bb);
             }
 
-            bitboard_loop!(red_bb, sq, {
+            bitboard_loop!(us_bb, sq, {
                 let pc_idx = i * 2 + 0;
                 let halfkp = sq as usize + pc_idx * StrategoState::BOARD;
 
                 features[halfkp] = 1.0;
             });
 
-            bitboard_loop!(blue_bb, sq, {
+            bitboard_loop!(them_bb, sq, {
                 let pc_idx = i * 2 + 1;
                 let halfkp = sq as usize + pc_idx * StrategoState::BOARD;
 
@@ -114,8 +114,6 @@ impl StrategoState {
     }
 
     pub fn determination(&self) -> Self {
-        const BASE: [u64; 2] = [0xffffff, 0xffffff0000000000];
-
         let mut pos = self.clone();
         let mut rng = rand::rng();
 
@@ -125,11 +123,15 @@ impl StrategoState {
         red.shuffle(&mut rng);
         blue.shuffle(&mut rng);
 
-        let unknown = pos.board.get(Piece::UNKNOWN) & BASE[0] & pos.board.get(0);
-        StrategoState::determinize_bb(&mut pos, 0, unknown, &mut red);
+        let unknown = pos.board.get(Piece::UNKNOWN) & self.info.initial(0) & pos.board.get(0);
+        if unknown != 0 {
+            StrategoState::determinize_bb(&mut pos, 0, unknown, &mut red);
+        }
 
-        let unknown = pos.board.get(Piece::UNKNOWN) & BASE[1] & pos.board.get(1);
-        StrategoState::determinize_bb(&mut pos, 1, unknown, &mut blue);
+        let unknown = pos.board.get(Piece::UNKNOWN) & self.info.initial(1) & pos.board.get(1);
+        if unknown != 0 {
+            StrategoState::determinize_bb(&mut pos, 1, unknown, &mut blue);
+        }
 
         let mut red = pos.info.available(0);
         let mut blue = pos.info.available(1);
@@ -138,10 +140,14 @@ impl StrategoState {
         blue.shuffle(&mut rng);
 
         let unknown = pos.board.get(Piece::UNKNOWN) & pos.board.get(0);
-        StrategoState::determinize_bb(&mut pos, 0, unknown, &mut red);
+        if unknown != 0 {
+            StrategoState::determinize_bb(&mut pos, 0, unknown, &mut red);
+        }
 
         let unknown = pos.board.get(Piece::UNKNOWN) & pos.board.get(1);
-        StrategoState::determinize_bb(&mut pos, 1, unknown, &mut blue);
+        if unknown != 0 {
+            StrategoState::determinize_bb(&mut pos, 1, unknown, &mut blue);
+        }
 
         pos
     }
@@ -184,11 +190,12 @@ impl StrategoState {
         let mut bb = bb;
 
         bitboard_loop!(bb, sq, {
-            let new = pieces.pop();
-            if let Some(new) = new {
+            if let Some(new) = pieces.pop() {
                 pos.board.toggle(stm, Piece::UNKNOWN, sq);
                 pos.board.toggle(stm, new, sq);
             }
         });
+
+        assert!(pieces.len() == 0);
     }
 }

@@ -65,6 +65,10 @@ impl InformationSet {
         self.bb[stm]
     }
 
+    pub fn initial(&self, stm: usize) -> u64 {
+        self.initial[stm]
+    }
+
     pub fn update(&mut self, mov: &Move, board: &Position) {
         let stm = board.stm() as usize;
         let piece = mov.piece as usize;
