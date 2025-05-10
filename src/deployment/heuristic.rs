@@ -4,8 +4,8 @@ use crate::{
     stratego::{Piece, Position},
 };
 
-pub fn heuristic(attempts: usize, min: usize) -> String {
-    if min != 0 {
+pub fn heuristic(attempts: usize, min: bool) -> String {
+    if min {
         return heuristic_min(min as isize);
     }
 

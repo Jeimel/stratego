@@ -12,7 +12,7 @@ pub use network::Network;
 // Deployments from pov of blue
 pub enum Deployment {
     Random,
-    Heuristic(usize, usize),
+    Heuristic(usize, bool),
     Dataset,
     Network(Network, usize),
 }
