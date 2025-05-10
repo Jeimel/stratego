@@ -3,6 +3,7 @@ use random::UniformRandom;
 use stratego::{Move, StrategoState};
 
 pub mod deployment;
+pub mod information;
 pub mod mcts;
 pub mod policy;
 pub mod random;
