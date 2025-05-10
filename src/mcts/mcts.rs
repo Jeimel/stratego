@@ -47,6 +47,10 @@ impl Search for MCTS {
     fn deployment(&self) -> String {
         self.deployment.get()
     }
+
+    fn information(&self, pos: &StrategoState) -> StrategoState {
+        pos.clone()
+    }
 }
 
 impl MCTS {

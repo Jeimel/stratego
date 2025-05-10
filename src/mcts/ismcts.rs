@@ -1,6 +1,7 @@
 use super::{iteration, node::Node, Search};
 use crate::{
     deployment::Deployment,
+    information::Information,
     policy::Policy,
     select::Select,
     stratego::{Move, StrategoState},
@@ -16,6 +17,7 @@ pub struct ISMCTS<const MULTIPLE: bool> {
     policy: Policy,
     select: Select,
     deployment: Deployment,
+    information: Information,
 }
 
 impl<const MULTIPLE: bool> Search for ISMCTS<MULTIPLE> {
@@ -47,6 +49,10 @@ impl<const MULTIPLE: bool> Search for ISMCTS<MULTIPLE> {
     fn deployment(&self) -> String {
         self.deployment.get()
     }
+
+    fn information(&self, pos: &StrategoState) -> StrategoState {
+        self.information.get(pos)
+    }
 }
 
 impl<const MULTIPLE: bool> ISMCTS<MULTIPLE> {
@@ -56,6 +62,7 @@ impl<const MULTIPLE: bool> ISMCTS<MULTIPLE> {
         policy: Policy,
         select: Select,
         deployment: Deployment,
+        information: Information,
     ) -> Self {
         Self {
             iterations,
@@ -63,6 +70,7 @@ impl<const MULTIPLE: bool> ISMCTS<MULTIPLE> {
             policy,
             select,
             deployment,
+            information,
         }
     }
 
@@ -70,7 +78,7 @@ impl<const MULTIPLE: bool> ISMCTS<MULTIPLE> {
         let root = Node::new();
 
         for _ in 0..self.iterations {
-            let mut det = pos.determination();
+            let mut det = self.information.get(&pos);
             let node = Arc::clone(&root);
 
             iteration::execute_one::<ISMCTS<MULTIPLE>, MULTIPLE>(&mut det, node, self);

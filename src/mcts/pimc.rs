@@ -1,6 +1,7 @@
 use super::{iteration, node::NodeStats, Node, Search};
 use crate::{
     deployment::Deployment,
+    information::Information,
     policy::Policy,
     select::Select,
     stratego::{Move, StrategoState},
@@ -17,6 +18,7 @@ pub struct PIMC {
     policy: Policy,
     select: Select,
     deployment: Deployment,
+    information: Information,
 }
 
 impl Search for PIMC {
@@ -46,6 +48,10 @@ impl Search for PIMC {
     fn deployment(&self) -> String {
         self.deployment.get()
     }
+
+    fn information(&self, pos: &StrategoState) -> StrategoState {
+        self.information.get(pos)
+    }
 }
 
 impl PIMC {
@@ -56,6 +62,7 @@ impl PIMC {
         policy: Policy,
         select: Select,
         deployment: Deployment,
+        information: Information,
     ) -> Self {
         Self {
             determinizations,
@@ -64,6 +71,7 @@ impl PIMC {
             policy,
             select,
             deployment,
+            information,
         }
     }
 
@@ -72,7 +80,7 @@ impl PIMC {
 
         for _ in 0..self.determinizations {
             let node = Node::new();
-            let det = pos.determination();
+            let det = self.information.get(pos);
 
             for _ in 0..self.iterations {
                 let mut pos = det.clone();
