@@ -1,5 +1,6 @@
 use super::{node::Node, Search};
 use crate::{
+    policy::{ordered, policy, DEFAULT_WEIGHTS},
     stratego::{GameState, StrategoState},
     value::{self},
 };
@@ -17,12 +18,19 @@ pub fn execute_one<S: Search, const MULTIPLE: bool>(
     let mut untried;
     loop {
         moves = (if MULTIPLE {
-            pos.anonymize(pos.stm() as usize ^ 1).determination().gen()
+            search
+                .information(&pos.anonymize(pos.stm() as usize ^ 1))
+                .gen()
         } else {
             pos.gen()
         })
         .iter()
         .collect();
+
+        let sum = ordered(&pos, &moves, &DEFAULT_WEIGHTS).1;
+        for c in node.children() {
+            *c.policy_mut() = policy(&pos, &c.mov().unwrap(), &DEFAULT_WEIGHTS).exp() / sum;
+        }
 
         untried = node.untried(&moves);
         if moves.is_empty() || !untried.is_empty() {

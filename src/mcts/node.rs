@@ -23,6 +23,7 @@ pub struct Node {
     mov: Option<Move>,
     parent: Option<Weak<Node>>,
     state: RwLock<GameState>,
+    policy: RwLock<f32>,
     children: RwLock<Vec<Arc<Node>>>,
     stats: RwLock<NodeStats>,
 }
@@ -33,6 +34,7 @@ impl Node {
             mov: None,
             parent: None,
             state: RwLock::new(GameState::default()),
+            policy: RwLock::new(0.0),
             children: Default::default(),
             stats: RwLock::new(NodeStats::new(0, 0.0)),
         })
@@ -45,8 +47,9 @@ impl Node {
         let child = Arc::new(Node {
             mov: Some(mov),
             parent: Some(parent),
-            children: Default::default(),
             state: RwLock::new(state),
+            policy: RwLock::new(0.0),
+            children: Default::default(),
             stats: RwLock::new(NodeStats::new(1, value)),
         });
 
@@ -87,6 +90,14 @@ impl Node {
 
     pub fn game_state(&self) -> GameState {
         *self.state.read().unwrap()
+    }
+
+    pub fn policy(&self) -> RwLockReadGuard<'_, f32> {
+        self.policy.read().unwrap()
+    }
+
+    pub fn policy_mut(&self) -> RwLockWriteGuard<'_, f32> {
+        self.policy.write().unwrap()
     }
 
     pub fn stats(&self) -> RwLockReadGuard<'_, NodeStats> {
