@@ -5,7 +5,7 @@ use crate::{
 };
 
 pub fn heuristic(pos: &mut StrategoState, scaling: f32) -> f32 {
-    (evaluate(pos) / scaling).tanh()
+    (evaluate(pos) * scaling).tanh()
 }
 
 pub fn evaluate(pos: &mut StrategoState) -> f32 {

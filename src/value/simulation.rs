@@ -1,12 +1,14 @@
 use super::Heuristic;
-use crate::stratego::{Flag, GameState, Piece, StrategoState};
+use crate::{
+    policy::ordered,
+    stratego::{GameState, StrategoState},
+};
 use rand::{
     distr::{weighted::WeightedIndex, Distribution},
     rng,
     seq::IteratorRandom,
     Rng,
 };
-use std::{cmp::Ordering, usize};
 
 pub fn simulation_uniform(pos: &mut StrategoState) -> f32 {
     let mut rng = rng();
@@ -32,7 +34,7 @@ pub fn simulation_uniform(pos: &mut StrategoState) -> f32 {
     }
 }
 
-pub fn simulation_ordered(pos: &mut StrategoState, weights: [usize; 5]) -> f32 {
+pub fn simulation_ordered(pos: &mut StrategoState, weights: &[f32; 5]) -> f32 {
     let mut rng = rng();
 
     let stm = pos.stm();
@@ -45,36 +47,8 @@ pub fn simulation_ordered(pos: &mut StrategoState, weights: [usize; 5]) -> f32 {
             break;
         }
 
-        let mut scores = vec![weights[0]; moves.len()];
-        for (i, mov) in moves.iter().enumerate() {
-            if (mov.flag & Flag::CAPTURE) == 0 {
-                continue;
-            }
-
-            let other = pos.board().piece(mov.to);
-            if other == Piece::FLAG {
-                scores[i] = weights[4];
-                continue;
-            }
-
-            let piece = mov.piece as usize;
-            let ordering = if (piece == Piece::SPY && other == Piece::MARSHAL)
-                || (piece == Piece::MINER && other == Piece::BOMB)
-            {
-                // Spy can capture general or miner can defuse bomb
-                Ordering::Greater
-            } else {
-                piece.cmp(&other)
-            };
-
-            scores[i] = match ordering {
-                Ordering::Less => weights[1],
-                Ordering::Equal => weights[2],
-                Ordering::Greater => weights[3],
-            }
-        }
-
-        let dist = WeightedIndex::new(&scores).unwrap();
+        let softmax = ordered(pos, &moves.iter().collect(), &weights).0;
+        let dist = WeightedIndex::new(&softmax).unwrap();
         let mov = moves[dist.sample(&mut rng)];
         pos.make(mov);
     }
@@ -105,6 +79,42 @@ pub fn simulation_cutoff(pos: &mut StrategoState, c: f32, heuristic: Heuristic) 
             // Handle two-squares and more-squares rule
             pos.set_game_state(GameState::Loss);
         }
+    }
+
+    let current = f32::from(stm == pos.stm());
+    match pos.game_state() {
+        GameState::Draw => 0.0,
+        GameState::Win => -1.0 + (2.0 * current),
+        GameState::Loss => 1.0 + (-2.0 * current),
+        GameState::Ongoing => heuristic(pos) * (-1.0 + 2.0 * current),
+    }
+}
+
+pub fn simulation_ordered_cutoff(
+    pos: &mut StrategoState,
+    weights: &[f32; 5],
+    c: f32,
+    heuristic: Heuristic,
+) -> f32 {
+    let mut rng = rng();
+
+    let stm = pos.stm();
+    while !pos.game_over() {
+        if rng.random::<f32>() < c {
+            break;
+        }
+
+        let moves = pos.gen();
+        if moves.len() == 0 {
+            // Handle two-squares and more-squares rule
+            pos.set_game_state(GameState::Loss);
+            break;
+        }
+
+        let softmax = ordered(pos, &moves.iter().collect(), &weights).0;
+        let dist = WeightedIndex::new(&softmax).unwrap();
+        let mov = moves[dist.sample(&mut rng)];
+        pos.make(mov);
     }
 
     let current = f32::from(stm == pos.stm());
