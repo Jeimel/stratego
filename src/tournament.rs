@@ -36,16 +36,17 @@ impl Tournament {
 
         let players = self.engines.len();
         let schedule = Schedule::from(players, rounds);
+        let games = schedule.games();
 
         println!("info tournament rounds {}", schedule.games());
-        for pair in schedule {
-            self.play(pair.0, pair.1);
+        for (i, pair) in schedule.enumerate() {
+            self.play(i, games, pair.0, pair.1);
         }
 
         println!("{}", self.result());
     }
 
-    fn play(&mut self, i: usize, j: usize) {
+    fn play(&mut self, index: usize, limit: usize, i: usize, j: usize) {
         let mut history = Vec::new();
 
         let deployments = self.deployment(i, j);
@@ -55,7 +56,13 @@ impl Tournament {
         self.results[i].update(winner[0]);
         self.results[j].update(winner[1]);
 
-        println!("info game pos {} moves {}", pos_str, history.len());
+        println!(
+            "info game {}/{} pos {} moves {}",
+            index,
+            limit,
+            pos_str,
+            history.len()
+        );
     }
 
     fn result(&mut self) -> String {
@@ -120,7 +127,9 @@ impl Tournament {
             if mov.is_none() {
                 println!("{}", pos);
                 println!("{:?}", moves);
-                unreachable!();
+
+                // TODO: unreachable!();
+                return [0.5, 0.5];
             }
 
             stm ^= 1;
