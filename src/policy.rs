@@ -2,13 +2,7 @@ use crate::stratego::{Flag, Move, Piece, StrategoState};
 use rand::distr::weighted::WeightedIndex;
 use std::cmp::Ordering;
 
-pub const DEFAULT_WEIGHTS: [f32; 5] = [
-    3.0 / 1024.0,
-    1.0 / 1024.0,
-    5.0 / 1024.0,
-    15.0 / 1024.0,
-    1000.0 / 1024.0,
-];
+pub const DEFAULT_WEIGHTS: [f32; 5] = [0.5, 0.1, 1.0, 2.0, 10.0];
 
 pub enum Policy {
     Uniform,

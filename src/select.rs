@@ -43,13 +43,13 @@ pub fn isuct(node: &Node, c: f32) -> f32 {
 pub fn progressive_uct(node: &Node, c: f32, d: f32) -> f32 {
     let stats = node.stats();
 
-    uct(node, c) + (-stats.value * d) / stats.visits as f32
+    uct(node, c) + (-stats.value) / (stats.visits as f32 * d)
 }
 
 pub fn progressive_isuct(node: &Node, c: f32, d: f32) -> f32 {
     let stats = node.stats();
 
-    isuct(node, c) + (-stats.value * d) / stats.visits as f32
+    isuct(node, c) + (-stats.value) / (stats.visits as f32 * d)
 }
 
 pub fn puct(node: &Node, c_1: f32, c_2: f32) -> f32 {

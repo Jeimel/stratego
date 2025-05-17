@@ -1,24 +1,25 @@
 use crate::{
     bitboard_loop,
     deployment::heuristic::evaluate_bb,
-    stratego::{chebyshev, flip_bb, Piece, Position, StrategoState},
+    stratego::{chebyshev, flip_bb, orthogonal, Piece, Position, StrategoState},
 };
 
+const VALUES: [f32; 8] = [
+    10000.0, // Flag
+    200.0,   // Spy
+    25.0,    // Miner
+    30.0,    // Scout
+    200.0,   // General
+    400.0,   // Marshal
+    0.0,     // Unknown
+    20.0,    // Bomb
+];
+
 pub fn heuristic(pos: &mut StrategoState, scaling: f32) -> f32 {
-    (evaluate(pos) * scaling).tanh()
+    (evaluate(pos) / scaling).tanh()
 }
 
 pub fn evaluate(pos: &mut StrategoState) -> f32 {
-    const VALUES: [f32; 7] = [
-        15.0, // Spy
-        5.0,  // Miner
-        5.0,  // Scout
-        15.0, // General
-        30.0, // Marshal
-        0.0,  // Unknown
-        10.0, // Bomb
-    ];
-
     let board = pos.board();
     let info = pos.information();
     let stm = pos.stm() as usize;
@@ -29,6 +30,16 @@ pub fn evaluate(pos: &mut StrategoState) -> f32 {
         let them = board.get(side ^ 1);
         let unknown = info.get(side);
 
+        let flag = (board.get(Piece::FLAG) & them).trailing_zeros() as usize;
+        if flag == 0 {
+            sum -= VALUES[0];
+
+            continue;
+        }
+
+        let flag_chebyshev = chebyshev(flag);
+
+        let mut max = 0.0;
         for piece in Piece::SPY..=Piece::BOMB {
             if piece == Piece::UNKNOWN {
                 continue;
@@ -37,7 +48,11 @@ pub fn evaluate(pos: &mut StrategoState) -> f32 {
             let mut mask = board.get(piece) & us;
             let count = mask.count_ones();
 
-            let mut value = VALUES[piece - 3];
+            let mut value = VALUES[piece - 2];
+
+            if piece == Piece::BOMB {
+                value = max * 0.5;
+            }
 
             if piece == Piece::MARSHAL && (board.get(Piece::SPY) & them) != 0 {
                 value *= 0.5;
@@ -46,7 +61,7 @@ pub fn evaluate(pos: &mut StrategoState) -> f32 {
             if (piece == Piece::SCOUT || piece == Piece::MINER || piece == Piece::BOMB)
                 && count == 1
             {
-                value *= 2.0;
+                value *= 1.5;
             }
 
             if count > (them & board.get(piece)).count_ones() {
@@ -57,17 +72,25 @@ pub fn evaluate(pos: &mut StrategoState) -> f32 {
                 value /= 5.0;
             }
 
-            bitboard_loop!(
-                mask,
-                sq,
+            if value > max {
+                max = value;
+            }
+
+            bitboard_loop!(mask, sq, {
+                let mut value = value;
+
+                if (flag_chebyshev & (1u64 << sq)) != 0 {
+                    value *= 5.0;
+                }
+
                 sum += if ((1u64 << sq) & unknown) == 0 {
                     value / 2.0
                 } else {
                     value
                 }
-            );
+            });
 
-            sum += lower_ranked(&board, side, piece);
+            sum += lower_ranked(&board, side, piece, side == stm);
         }
 
         let mut bb = [
@@ -89,7 +112,7 @@ pub fn evaluate(pos: &mut StrategoState) -> f32 {
             }
         }
 
-        sum += evaluate_bb(bb) as f32;
+        sum += 20.0 * evaluate_bb(bb) as f32;
 
         sum = -sum;
     }
@@ -97,16 +120,23 @@ pub fn evaluate(pos: &mut StrategoState) -> f32 {
     sum
 }
 
-fn lower_ranked(board: &Position, side: usize, piece: usize) -> f32 {
+fn lower_ranked(board: &Position, side: usize, piece: usize, bonus: bool) -> f32 {
     let mut score = 0.0;
-
     let mut piece_bb = board.get(side) & board.get(piece);
-    bitboard_loop!(piece_bb, sq, {
-        let chebyshev = chebyshev(sq as usize);
 
-        for lower in Piece::SPY..piece {
-            let lower = board.get(side ^ 1) & board.get(lower);
-            score += 5.0 * (lower & chebyshev).count_ones() as f32;
+    bitboard_loop!(piece_bb, sq, {
+        let orthogonal = orthogonal(sq as usize);
+
+        let more = match piece {
+            Piece::SPY => vec![Piece::MARSHAL],
+            Piece::MINER => vec![Piece::BOMB],
+            _ => vec![],
+        };
+
+        for lower in (Piece::SPY..piece).chain(more) {
+            let lower_bb = board.get(side ^ 1) & board.get(lower);
+            score += (lower_bb & orthogonal).count_ones() as f32
+                * if bonus { VALUES[lower - 2] / 2.0 } else { 5.0 };
         }
     });
 
