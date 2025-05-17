@@ -6,7 +6,7 @@ use crate::{
 
 pub fn heuristic(attempts: usize, min: bool) -> String {
     if min {
-        return heuristic_min(min as isize);
+        return heuristic_min(attempts as isize);
     }
 
     let (deployment, _) = (0..attempts)

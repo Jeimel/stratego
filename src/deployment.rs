@@ -28,7 +28,7 @@ impl Deployment {
     }
 }
 
-fn random() -> String {
+pub fn random() -> String {
     const PIECES: [char; 10] = [
         Position::SYMBOLS[8],
         Position::SYMBOLS[9],
