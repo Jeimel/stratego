@@ -18,12 +18,14 @@ unsafe impl Sync for Network {}
 
 impl Network {
     pub fn new(vs: &nn::Path) -> Self {
-        Network {
+        let net = Network {
             l1_1: nn::linear(vs, StrategoState::FEATURES as i64, 256, Default::default()),
             l1_2: nn::linear(vs, StrategoState::FEATURES as i64, 256, Default::default()),
             l2: nn::linear(vs, 512, 32, Default::default()),
             l3: nn::linear(vs, 32, 1, Default::default()),
-        }
+        };
+
+        net
     }
 
     pub fn get(&self, pos: &mut StrategoState) -> f32 {
@@ -38,10 +40,8 @@ impl Network {
     pub fn forward(&self, us: &Tensor, them: &Tensor) -> Tensor {
         Tensor::cat(&[us.apply(&self.l1_1), them.apply(&self.l1_2)], 0)
             .clamp(0.0, 1.0)
-            .square()
             .apply(&self.l2)
             .clamp(0.0, 1.0)
-            .square()
             .apply(&self.l3)
             .tanh()
     }
@@ -49,10 +49,8 @@ impl Network {
     pub fn forward_batch(&self, us: &Tensor, them: &Tensor) -> Tensor {
         Tensor::cat(&[us.apply(&self.l1_1), them.apply(&self.l1_2)], 1)
             .clamp(0.0, 1.0)
-            .square()
             .apply(&self.l2)
             .clamp(0.0, 1.0)
-            .square()
             .apply(&self.l3)
             .tanh()
     }

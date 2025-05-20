@@ -17,7 +17,11 @@ pub enum Value {
     SimulationCutoff(f32, Heuristic),
     SimulationOrderedCutoff([f32; 5], f32, Heuristic),
     Heuristic(f32),
-    Network(Network, [f32; 5], f32),
+    HeuristicMix(f32, f32),
+    Network(Network),
+    NetworkCutoff(Network, f32),
+    NetworkOrderedCutoff(Network, [f32; 5], f32),
+    NetworkMix(Network, f32),
 }
 
 impl Value {
@@ -30,7 +34,23 @@ impl Value {
                 simulation_ordered_cutoff(pos, weights, *c, *heuristic)
             }
             Value::Heuristic(scaling) => heuristic(pos, *scaling),
-            Value::Network(nn, weights, c) => {
+            Value::HeuristicMix(scaling, lambda) => {
+                heuristic(pos, *scaling) * lambda + simulation_uniform(pos) * (1.0 - lambda)
+            }
+            Value::Network(nn) => nn.get(pos),
+            Value::NetworkCutoff(nn, c) => {
+                let stm = pos.stm();
+
+                let result = simulation_cutoff(pos, *c, |_: &mut StrategoState| 5.0);
+
+                if result == 1.0 || result == -1.0 || result == 0.0 {
+                    return result;
+                }
+
+                let current = f32::from(stm == pos.stm());
+                nn.get(pos) * (-1.0 + 2.0 * current)
+            }
+            Value::NetworkOrderedCutoff(nn, weights, c) => {
                 let stm = pos.stm();
 
                 let result =
@@ -42,6 +62,9 @@ impl Value {
 
                 let current = f32::from(stm == pos.stm());
                 nn.get(pos) * (-1.0 + 2.0 * current)
+            }
+            Value::NetworkMix(nn, lambda) => {
+                nn.get(pos) * lambda + simulation_uniform(pos) * (1.0 - lambda)
             }
         }
     }
