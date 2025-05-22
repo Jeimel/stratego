@@ -11,4 +11,4 @@ stratego = { path = "../" }
 
 [features]
 deployment = []
-datagen = []
+value = []
