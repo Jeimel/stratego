@@ -1,9 +1,14 @@
-use crate::{buffer::ReplayBuffer, thread::DatagenThread};
-use std::time::Instant;
+use crate::{
+    buffer::{ReplayBuffer, SearchData},
+    thread::DatagenThread,
+};
+use std::{collections::VecDeque, time::Instant};
 use stratego::{
     deployment::Deployment,
+    information::Information,
     mcts::ISMCTS,
     policy::Policy,
+    random::UniformRandom,
     select::Select,
     tournament::Tournament,
     value::{Network, Value},
@@ -18,6 +23,7 @@ use tch::{
 #[derive(Debug)]
 pub struct ValueArgs {
     pub threads: usize,
+    pub supervised: bool,
     pub steps: usize,
     pub epochs: usize,
     pub batch_size: usize,
@@ -51,27 +57,11 @@ pub fn run(args: ValueArgs) {
             buffer.report();
         }
 
-        let mut features_us = Vec::with_capacity(args.buffer_size);
-        let mut features_them = Vec::with_capacity(args.buffer_size);
-        let mut targets = Vec::with_capacity(args.buffer_size);
-        let mut results = Vec::with_capacity(args.buffer_size);
-
-        for data in &buffer.dataset {
-            let red = Tensor::from_slice(&data.input[0]);
-            let blue = Tensor::from_slice(&data.input[1]);
-
-            let (us, them) = if data.stm { (blue, red) } else { (red, blue) };
-
-            features_us.push(us);
-            features_them.push(them);
-            targets.push(Tensor::from_slice(&[data.target]));
-            results.push(Tensor::from_slice(&[data.result]));
-        }
-
-        let features_us = Tensor::stack(&features_us, 0);
-        let features_them = Tensor::stack(&features_them, 0);
-        let targets = Tensor::stack(&targets, 0);
-        let results = Tensor::stack(&results, 0);
+        let (features_us, features_them, targets) = if args.supervised {
+            supervised(&buffer.dataset)
+        } else {
+            reinforcement(&buffer.dataset, 0.3)
+        };
 
         let size = targets.size()[0];
 
@@ -82,12 +72,11 @@ pub fn run(args: ValueArgs) {
 
             let features_us = features_us.index_select(0, &batch);
             let features_them = features_them.index_select(0, &batch);
-            let outputs = net.forward_batch(&features_us, &features_them);
+            let targets = targets.index_select(0, &batch);
 
-            let targets =
-                results.index_select(0, &batch) * 0.7 + targets.index_select(0, &batch) * 0.3;
-
-            let loss = outputs.mse_loss(&targets, Reduction::Mean);
+            let loss = net
+                .forward_batch(&features_us, &features_them)
+                .mse_loss(&targets, Reduction::Mean);
             opt.backward_step(&loss);
 
             step_loss += loss.double_value(&[]) as f32;
@@ -108,26 +97,78 @@ pub fn run(args: ValueArgs) {
             continue;
         }
 
-        let one = ISMCTS::new(
+        let net = ISMCTS::new(
             10_000,
-            Value::Network(Network::new(&vs.root())),
+            Value::NetworkCutoff(Network::new(&vs.root()), 0.025),
             Policy::Uniform,
             Select::ISUCT(1.41),
-            Deployment::Heuristic(100, 0),
+            Deployment::Heuristic(100, false),
+            Information::Random,
         );
-        let two = ISMCTS::new(
+        let uct = ISMCTS::new(
             10_000,
             Value::SimulationUniform,
             Policy::Uniform,
             Select::ISUCT(1.41),
-            Deployment::Heuristic(100, 0),
+            Deployment::Heuristic(100, false),
+            Information::Random,
         );
+        let random = UniformRandom::new(Deployment::Heuristic(100, false));
 
         let mut tournament = Tournament::new(150);
-        tournament.add("net", Algorithm::SOISMCTS(one), false);
-        tournament.add("uct", Algorithm::SOISMCTS(two), false);
-        tournament.run(10);
+        tournament.add("net", Algorithm::SOISMCTS(net), false);
+        tournament.add("uct", Algorithm::SOISMCTS(uct), false);
+        tournament.add("random", Algorithm::Random(random), false);
+        tournament.run(5);
     }
+}
+
+fn supervised(dataset: &VecDeque<SearchData>) -> (Tensor, Tensor, Tensor) {
+    let mut features_us = Vec::with_capacity(dataset.len());
+    let mut features_them = Vec::with_capacity(dataset.len());
+    let mut targets = Vec::with_capacity(dataset.len());
+
+    for data in dataset {
+        let red = Tensor::from_slice(&data.input[0]);
+        let blue = Tensor::from_slice(&data.input[1]);
+
+        let (us, them) = if data.stm { (blue, red) } else { (red, blue) };
+
+        features_us.push(us);
+        features_them.push(them);
+        targets.push(Tensor::from_slice(&[data.heuristic]));
+    }
+
+    (
+        Tensor::stack(&features_us, 0),
+        Tensor::stack(&features_them, 0),
+        Tensor::stack(&targets, 0),
+    )
+}
+
+fn reinforcement(dataset: &VecDeque<SearchData>, lambda: f32) -> (Tensor, Tensor, Tensor) {
+    let mut features_us = Vec::with_capacity(dataset.len());
+    let mut features_them = Vec::with_capacity(dataset.len());
+    let mut targets = Vec::with_capacity(dataset.len());
+
+    for data in dataset {
+        let red = Tensor::from_slice(&data.input[0]);
+        let blue = Tensor::from_slice(&data.input[1]);
+
+        let (us, them) = if data.stm { (blue, red) } else { (red, blue) };
+
+        features_us.push(us);
+        features_them.push(them);
+        targets.push(Tensor::from_slice(&[
+            data.target * lambda + data.result * (1.0 - lambda)
+        ]));
+    }
+
+    (
+        Tensor::stack(&features_us, 0),
+        Tensor::stack(&features_them, 0),
+        Tensor::stack(&targets, 0),
+    )
 }
 
 fn datagen(args: &ValueArgs, buffer: &mut ReplayBuffer) {

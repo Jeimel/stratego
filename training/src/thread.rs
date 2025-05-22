@@ -1,44 +1,32 @@
 use crate::buffer::SearchData;
-use rand::{
-    rng,
-    seq::{IteratorRandom, SliceRandom},
-    Rng,
-};
+use rand::{rng, seq::IteratorRandom};
 use stratego::{
     deployment::Deployment,
     mcts::{Search, MCTS},
     policy::Policy,
     select::Select,
     stratego::{GameState, StrategoState},
-    value::{Network, Value},
+    value::{heuristic, Network, Value},
 };
 
 pub struct DatagenThread {
-    mcts_sim: MCTS,
-    mcts_net: MCTS,
+    mcts: MCTS,
     buffer: Vec<SearchData>,
     games: usize,
 }
 
 impl DatagenThread {
-    const LIMIT: usize = 500;
+    const LIMIT: usize = 150;
     const RANDOM: usize = 10;
 
     pub fn new(iterations: usize, games: usize, network: Network) -> Self {
         Self {
-            mcts_sim: MCTS::new(
+            mcts: MCTS::new(
                 iterations,
-                Value::SimulationUniform,
+                Value::NetworkCutoff(network, 0.1),
                 Policy::Uniform,
                 Select::UCT(1.41),
-                Deployment::Heuristic(50, 0),
-            ),
-            mcts_net: MCTS::new(
-                iterations,
-                Value::Network(network),
-                Policy::Uniform,
-                Select::UCT(1.41),
-                Deployment::Heuristic(50, 0),
+                Deployment::Heuristic(50, false),
             ),
             buffer: Vec::with_capacity(games),
             games,
@@ -74,8 +62,6 @@ impl DatagenThread {
             }
         }
 
-        let index = usize::from(rng.random::<bool>());
-
         ply = 0;
         while !pos.game_over() {
             ply += 1;
@@ -94,25 +80,19 @@ impl DatagenThread {
             let red = pos.features::<0>();
             let blue = pos.features::<1>();
 
-            let mov = if ply % 2 == index {
-                self.mcts_net.go(&pos)
-            } else {
-                self.mcts_sim.go(&pos)
-            };
+            let mov = self.mcts.go(&pos);
 
             let mov = gen.iter().find(|m| format!("{}", m) == format!("{}", mov));
             if mov.is_none() {
                 unreachable!();
             }
 
+            let heuristic = heuristic(&mut pos, 750.0);
+
             let mov = mov.unwrap();
             pos.make(mov);
 
-            let root = if ply % 2 == 0 {
-                self.mcts_net.root()
-            } else {
-                self.mcts_sim.root()
-            };
+            let root = self.mcts.root();
 
             let mut policy = Vec::new();
             for child in root.children() {
@@ -123,13 +103,10 @@ impl DatagenThread {
             data.push(SearchData::new(
                 [red, blue],
                 root.stats().reward / root.stats().visits as f32,
+                heuristic,
                 policy,
                 !pos.stm(),
             ));
-        }
-
-        if pos.game_state() == GameState::Draw {
-            return;
         }
 
         // Last move is from other stm
@@ -151,14 +128,14 @@ impl DatagenThread {
 
     fn deployment(&mut self) -> String {
         let red = self
-            .mcts_sim
+            .mcts
             .deployment()
             .to_ascii_uppercase()
             .split('/')
             .rev()
             .collect::<Vec<_>>()
             .join("/");
-        let blue = self.mcts_net.deployment().to_ascii_lowercase();
+        let blue = self.mcts.deployment().to_ascii_lowercase();
 
         format!("{}/8/8/{} r", blue, red)
     }

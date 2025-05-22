@@ -14,6 +14,7 @@ use stratego::stratego::{Move, StrategoState};
 pub struct SearchData {
     pub input: [[f32; StrategoState::FEATURES]; 2],
     pub target: f32,
+    pub heuristic: f32,
     pub result: f32,
     pub policy: Vec<(Move, usize)>,
     pub stm: bool,
@@ -23,12 +24,14 @@ impl SearchData {
     pub fn new(
         input: [[f32; StrategoState::FEATURES]; 2],
         target: f32,
+        heuristic: f32,
         policy: Vec<(Move, usize)>,
         stm: bool,
     ) -> Self {
         Self {
             input,
             target,
+            heuristic,
             result: 0.0,
             policy,
             stm,
