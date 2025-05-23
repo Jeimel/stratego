@@ -2,10 +2,12 @@ use crate::stratego::StrategoState;
 use simulation::{simulation_cutoff, simulation_ordered, simulation_ordered_cutoff};
 
 pub use heuristic::{evaluate, heuristic};
+#[cfg(feature = "tch")]
 pub use network::Network;
 pub use simulation::simulation_uniform;
 
 mod heuristic;
+#[cfg(feature = "tch")]
 mod network;
 mod simulation;
 
@@ -18,9 +20,13 @@ pub enum Value {
     SimulationOrderedCutoff([f32; 5], f32, Heuristic),
     Heuristic(f32),
     HeuristicMix(f32, f32),
+    #[cfg(feature = "tch")]
     Network(Network),
+    #[cfg(feature = "tch")]
     NetworkCutoff(Network, f32),
+    #[cfg(feature = "tch")]
     NetworkOrderedCutoff(Network, [f32; 5], f32),
+    #[cfg(feature = "tch")]
     NetworkMix(Network, f32),
 }
 
@@ -37,7 +43,9 @@ impl Value {
             Value::HeuristicMix(scaling, lambda) => {
                 heuristic(pos, *scaling) * lambda + simulation_uniform(pos) * (1.0 - lambda)
             }
+            #[cfg(feature = "tch")]
             Value::Network(nn) => nn.get(pos),
+            #[cfg(feature = "tch")]
             Value::NetworkCutoff(nn, c) => {
                 let stm = pos.stm();
 
@@ -50,6 +58,7 @@ impl Value {
                 let current = f32::from(stm == pos.stm());
                 nn.get(pos) * (-1.0 + 2.0 * current)
             }
+            #[cfg(feature = "tch")]
             Value::NetworkOrderedCutoff(nn, weights, c) => {
                 let stm = pos.stm();
 
@@ -63,6 +72,7 @@ impl Value {
                 let current = f32::from(stm == pos.stm());
                 nn.get(pos) * (-1.0 + 2.0 * current)
             }
+            #[cfg(feature = "tch")]
             Value::NetworkMix(nn, lambda) => {
                 nn.get(pos) * lambda + simulation_uniform(pos) * (1.0 - lambda)
             }

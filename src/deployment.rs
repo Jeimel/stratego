@@ -4,9 +4,11 @@ use rand::{rng, seq::IndexedRandom, Rng};
 use std::collections::HashSet;
 
 pub mod heuristic;
+#[cfg(feature = "tch")]
 mod network;
 
 pub use heuristic::evaluate;
+#[cfg(feature = "tch")]
 pub use network::Network;
 
 // Deployments from pov of blue
@@ -14,6 +16,7 @@ pub enum Deployment {
     Random,
     Heuristic(usize, bool),
     Dataset,
+    #[cfg(feature = "tch")]
     Network(Network, usize),
 }
 
@@ -23,6 +26,7 @@ impl Deployment {
             Deployment::Random => random(),
             Deployment::Heuristic(attempts, min) => heuristic(*attempts, *min),
             Deployment::Dataset => dataset(),
+            #[cfg(feature = "tch")]
             Deployment::Network(net, attempts) => net.get(*attempts),
         }
     }
