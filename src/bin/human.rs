@@ -1,11 +1,12 @@
 use std::{io::stdin, process};
 use stratego::{
-    deployment::Deployment,
+    deployment::{heuristic::heuristic, Deployment},
+    information::Information,
     mcts::{Search, ISMCTS},
-    policy::Policy,
+    policy::{Policy, DEFAULT_WEIGHTS},
     select::Select,
     stratego::{GameState, MoveList, Position, StrategoState},
-    value::Value,
+    value::{evaluate, Value},
 };
 
 fn main() {
@@ -14,17 +15,20 @@ fn main() {
     let deployment_type = select("deployment type", &["own", "heuristic", "dataset"]);
     let human = match deployment_type.as_str() {
         "own" => custom_deployment(),
-        "heuristic" => Deployment::Heuristic.get(),
+        "heuristic" => heuristic(80, true),
         "dataset" => Deployment::Dataset.get(),
         _ => unreachable!(),
     };
 
     let mut ismcts = ISMCTS::<false>::new(
         100_000,
-        Value::SimulationUniform,
+        Value::SimulationOrderedCutoff(DEFAULT_WEIGHTS, 0.025, |pos: &mut StrategoState| {
+            (evaluate(pos) / 750.0).tanh()
+        }),
         Policy::Uniform,
         Select::ISUCT(1.41),
         Deployment::Dataset,
+        Information::Random,
     );
 
     let deployments = if color == "red" {
@@ -55,7 +59,9 @@ fn main() {
         }
 
         println!("{}", pos.anonymize((pos.stm() as usize) ^ 1));
-        moves.iter().for_each(|m| println!("{m}"));
+        println!("Choose move: [");
+        moves.iter().for_each(|m| println!("\t{m}"));
+        println!("]");
 
         let mov = read();
         make(&mut pos, &moves, &mov);
@@ -63,9 +69,12 @@ fn main() {
 }
 
 fn custom_deployment() -> String {
+    let (red, blue) = deployment(&heuristic(1000, false), &heuristic(1000, false));
+    println!("Example:\nRed: {}\nBlue: {}", red, blue);
+
     println!("Position: ");
     println!(
-        "Flag {}\nSpy {}\nScout {}\nMiner {}\nGeneral {}\nMarshal {}\nBomb {}\n",
+        "Flag {}\nSpy {}\nScout {}\nMiner {}\nGeneral {}\nMarshal {}\nBomb {}",
         Position::SYMBOLS[8],
         Position::SYMBOLS[9],
         Position::SYMBOLS[10],
