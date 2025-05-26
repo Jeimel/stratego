@@ -8,7 +8,7 @@ fn main() {
 
     vs.load("deployment.net").unwrap();
 
-    for attempts in [100] {
+    for attempts in [1, 3, 5, 10, 25, 50] {
         let result: Vec<_> = (0..DEPLOYMENTS)
             .map(|_| {
                 let deployment = net.get(attempts);
