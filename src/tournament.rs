@@ -38,23 +38,49 @@ impl Tournament {
         let schedule = Schedule::from(players, rounds);
         let games = schedule.games();
 
+        let mut rounds = vec![0usize; self.limit + 1];
+        let mut branching = vec![0usize; self.limit + 1];
+        let mut length = vec![0usize; games];
+
         println!("info tournament rounds {}", schedule.games());
         for (i, pair) in schedule.enumerate() {
-            self.play(i, games, pair.0, pair.1);
+            self.play(
+                i,
+                games,
+                pair.0,
+                pair.1,
+                &mut rounds,
+                &mut branching,
+                &mut length,
+            );
         }
 
         println!("{}", self.result());
+        println!("{:?}", rounds);
+        println!("{:?}", branching);
+        println!("{:?}", length);
     }
 
-    fn play(&mut self, index: usize, limit: usize, i: usize, j: usize) {
+    fn play(
+        &mut self,
+        index: usize,
+        limit: usize,
+        i: usize,
+        j: usize,
+        rounds: &mut Vec<usize>,
+        branching: &mut Vec<usize>,
+        length: &mut Vec<usize>,
+    ) {
         let mut history = Vec::new();
 
         let deployments = self.deployment(i, j);
         let pos_str = format!("{}/8/8/{} r", deployments.1, deployments.0);
 
-        let winner = self.game_loop(i, j, &mut history, &pos_str);
+        let winner = self.game_loop(i, j, &mut history, &pos_str, rounds, branching);
         self.results[i].update(winner[0]);
         self.results[j].update(winner[1]);
+
+        length[index] = history.len();
 
         println!(
             "info game {}/{} pos {} moves {}",
@@ -92,11 +118,14 @@ impl Tournament {
         j: usize,
         moves: &mut Vec<String>,
         pos_str: &str,
+        rounds: &mut Vec<usize>,
+        branching: &mut Vec<usize>,
     ) -> [f32; 2] {
         let indices = [i, j];
 
         let mut pos = StrategoState::from(&pos_str);
 
+        let mut ply = 0;
         let mut stm = 0;
         while !pos.game_over() {
             let gen = pos.gen();
@@ -132,7 +161,11 @@ impl Tournament {
                 return [0.5, 0.5];
             }
 
+            rounds[ply] += 1;
+            branching[ply] += gen.len();
+
             stm ^= 1;
+            ply += 1;
 
             let mov = mov.unwrap();
             pos.make(mov);
@@ -146,7 +179,7 @@ impl Tournament {
             GameState::Ongoing => unreachable!(),
         };
 
-        println!("{}", pos);
+        // println!("{}", pos);
 
         result
     }
