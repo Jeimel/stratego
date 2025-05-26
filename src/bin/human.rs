@@ -5,7 +5,7 @@ use stratego::{
     mcts::{Search, ISMCTS},
     policy::{Policy, DEFAULT_WEIGHTS},
     select::Select,
-    stratego::{GameState, MoveList, Position, StrategoState},
+    stratego::{Flag, GameState, MoveList, Piece, Position, StrategoState},
     value::{evaluate, Value},
 };
 
@@ -42,6 +42,7 @@ fn main() {
 
     let human_stm = if color == "red" { false } else { true };
 
+    let mut capture = String::new();
     while !pos.game_over() {
         let moves = pos.gen();
 
@@ -52,20 +53,22 @@ fn main() {
 
         if pos.stm() != human_stm {
             let mov = ismcts.go(&mut pos);
-            println!("MCTS move {}", mov);
+            println!("info move {}{}", capture, mov);
 
-            pos.make(mov);
+            capture = make(&mut pos, &moves, &format!("{mov}"));
             continue;
         }
 
         println!("{}", pos.anonymize((pos.stm() as usize) ^ 1));
         println!("Choose move: [");
-        moves.iter().for_each(|m| println!("\t{m}"));
+        moves.iter().for_each(|m| println!("  {m},"));
         println!("]");
 
         let mov = read();
-        make(&mut pos, &moves, &mov);
+        capture = make(&mut pos, &moves, &mov);
     }
+
+    println!("Game state: {:?}", pos.game_state());
 }
 
 fn custom_deployment() -> String {
@@ -98,18 +101,27 @@ fn deployment(red: &str, blue: &str) -> (String, String) {
     )
 }
 
-fn make(pos: &mut StrategoState, moves: &MoveList, mov_str: &str) {
+fn make(pos: &mut StrategoState, moves: &MoveList, mov_str: &str) -> String {
     for i in 0..moves.len() {
         let mov = moves[i];
 
-        if format!("{mov}") == mov_str {
-            pos.make(mov);
-
-            return;
+        if format!("{mov}") != mov_str {
+            continue;
         }
+
+        let capture = if (mov.flag & Flag::CAPTURE) != 0 {
+            format!("{}x", Piece::rank(pos.board().piece(mov.to)))
+        } else {
+            String::new()
+        };
+
+        pos.make(mov);
+
+        return capture;
     }
 
     println!("error illegal move {}", mov_str);
+    String::new()
 }
 
 fn select(text: &str, options: &[&str]) -> String {
