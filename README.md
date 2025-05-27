@@ -24,4 +24,4 @@ Note: There is no formal validation of the input.
 
 ### Notation
 
-Each move is denoted using the starting and target square. If the move captures a piece, the rank is denoted as suffix with a dividing `x`. If the last move was a capture, the rank of the attcked piece is denoted as prefix with a dividing `x`
+Each move is denoted using the starting and target square. If the move captures a piece, the rank is denoted as suffix with a dividing `x`. If the last move was a capture, the rank of the attacked piece is denoted as prefix with a dividing `x`
