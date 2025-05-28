@@ -4,7 +4,7 @@ Implementation of Stratego Quick Battle for bachelor thesis.
 
 ## Usage
 
-1. Install rust
+1. Install [Rust](https://www.rust-lang.org/tools/install)
 2. To play against the agent use:
 
 ```shell
